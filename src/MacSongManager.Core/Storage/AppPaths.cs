@@ -5,6 +5,17 @@ namespace MacSongManager.Core.Storage;
 public sealed class LibrarySettings
 {
     public string LibraryPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// PC-to-Mac conversion stays off until the user turns it on.
+    /// It is for custom songs only.
+    /// </summary>
+    public bool ConvertPcCustomSongs { get; set; }
+
+    /// <summary>
+    /// Empty means <see cref="AppPaths.DefaultConversionKeysPath"/>.
+    /// </summary>
+    public string ConversionKeysPath { get; set; } = string.Empty;
 }
 
 public static class SettingsStore
@@ -83,4 +94,7 @@ public static class AppPaths
 
     public static string CatalogBackupPath(string? home = null) =>
         Path.Combine(SupportFolder(home), "catalog-backup.json");
+
+    public static string DefaultConversionKeysPath(string? home = null) =>
+        Path.Combine(SupportFolder(home), "conversion-keys.txt");
 }

@@ -1,0 +1,16 @@
+# Mac Song Manager conversion keys
+#
+# The app does not include these values. Fill in hexadecimal from your own
+# copy of the four names in rocksmithconvert Crypto.swift:
+#   tocKey, tocIV, sngMac, sngPC
+# tocKey, sngMac, and sngPC are 32 bytes (64 hex digits).
+# tocIV is 16 bytes (32 hex digits).
+#
+# Save the completed file as:
+#   ~/Library/Application Support/Mac Song Manager/conversion-keys.txt
+# or choose it from the sidebar after turning on "Convert PC custom songs".
+
+tocKey=
+tocIV=
+sngMac=
+sngPC=

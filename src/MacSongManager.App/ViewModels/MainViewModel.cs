@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using MacSongManager.Core.Actions;
+using MacSongManager.Core.Conversion;
 using MacSongManager.Core.Library;
 using MacSongManager.Core.Safety;
 using MacSongManager.Core.Songs;
@@ -257,11 +258,69 @@ public sealed class MainViewModel : INotifyPropertyChanged
         private set
         {
             if (Set(ref _isBusy, value))
+            {
                 OnPropertyChanged(nameof(CanAct));
+                OnPropertyChanged(nameof(CanConvert));
+            }
         }
     }
 
     public bool CanAct => !IsBusy;
+
+    public bool CanConvert => CanAct && ConvertPcCustomSongs;
+
+    public bool ConvertPcCustomSongs
+    {
+        get => _settings.ConvertPcCustomSongs;
+        set
+        {
+            if (_settings.ConvertPcCustomSongs == value)
+                return;
+            _settings.ConvertPcCustomSongs = value;
+            SettingsStore.Save(_settingsPath, _settings);
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanConvert));
+            if (!value)
+            {
+                StatusMessage = "PC-to-Mac conversion is off.";
+                return;
+            }
+
+            try
+            {
+                ConversionKeys.Load(ResolveKeysPath());
+                StatusMessage = "PC-to-Mac conversion is on. It is for custom songs only.";
+            }
+            catch (ConversionException ex)
+            {
+                StatusMessage = ex.Message;
+            }
+        }
+    }
+
+    public string KeysFileNote => "Keys file: " + ResolveKeysPath();
+
+    public void SetConversionKeysPath(string path)
+    {
+        _settings.ConversionKeysPath = path;
+        SettingsStore.Save(_settingsPath, _settings);
+        OnPropertyChanged(nameof(KeysFileNote));
+        if (!ConvertPcCustomSongs)
+        {
+            StatusMessage = "Keys file saved. Conversion stays off until you turn it on. It is for custom songs only.";
+            return;
+        }
+
+        try
+        {
+            ConversionKeys.Load(path);
+            StatusMessage = "Keys file saved. PC-to-Mac conversion is for custom songs only.";
+        }
+        catch (ConversionException ex)
+        {
+            StatusMessage = ex.Message;
+        }
+    }
     public bool HasSelection => VisibleRows.Any(row => row.IsSelected);
     public string SummaryLine { get; private set; } = "No songs scanned.";
     public string DetailText => BuildDetail(_detailsRow);
@@ -296,7 +355,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     public ChangePlan PlanFriendlyRename() => ChangePlanner.PlanFriendlyRename(LibraryPath, SelectedSongs());
-    public ChangePlan PlanConvert() => ChangePlanner.PlanConvert(LibraryPath, SelectedSongs());
+
+    public ChangePlan PlanConvert()
+    {
+        if (!_settings.ConvertPcCustomSongs)
+            return ChangePlanner.PlanConvert(LibraryPath, SelectedSongs(), conversionEnabled: false, keys: null);
+
+        try
+        {
+            var keys = ConversionKeys.Load(ResolveKeysPath());
+            return ChangePlanner.PlanConvert(LibraryPath, SelectedSongs(), conversionEnabled: true, keys);
+        }
+        catch (ConversionException ex)
+        {
+            return new ChangePlan(
+                ChangeKind.Convert,
+                [],
+                SelectedSongs().Select(song => new SkippedChange(song.FullPath, ex.Message)).ToList());
+        }
+    }
     public ChangePlan PlanEnable() => ChangePlanner.PlanEnable(LibraryPath, SelectedSongs());
     public ChangePlan PlanDisable() => ChangePlanner.PlanDisable(LibraryPath, SelectedSongs());
     public ChangePlan PlanOrganize() => ChangePlanner.PlanOrganize(LibraryPath, SelectedSongs());
@@ -320,8 +397,28 @@ public sealed class MainViewModel : INotifyPropertyChanged
         return ChangePlanner.PlanUndo(latest, _trashRoot);
     }
 
-    public ApplyResult Apply(ChangePlan plan, bool dryRun) =>
-        _applier.Apply(LibraryPath, _trashRoot, plan, dryRun);
+    public ApplyResult Apply(ChangePlan plan, bool dryRun)
+    {
+        ConversionKeys? keys = null;
+        if (plan.Changes.Any(change => change.Kind == ChangeKind.Convert))
+        {
+            if (!_settings.ConvertPcCustomSongs)
+            {
+                return new ApplyResult(dryRun, false, ConversionKeys.DisabledMessage, plan, null);
+            }
+
+            try
+            {
+                keys = ConversionKeys.Load(ResolveKeysPath());
+            }
+            catch (ConversionException ex)
+            {
+                return new ApplyResult(dryRun, false, ex.Message, plan, null);
+            }
+        }
+
+        return _applier.Apply(LibraryPath, _trashRoot, plan, dryRun, _settings.ConvertPcCustomSongs, keys);
+    }
 
     public void SaveTag(SongRecord song, string artist, string title)
     {
@@ -548,7 +645,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _ => row.Artist
     };
 
-    private static string BuildDetail(SongRow? row)
+    private string BuildDetail(SongRow? row)
     {
         if (row is null)
             return "Select a row to see the file name, version, and author parsed from it.";
@@ -564,15 +661,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
         };
 
         if (song.FileKind == SongFileKind.PcFormat)
-            lines.Add("This file name ends in _p.psarc. The Mac game will not load it.");
+        {
+            lines.Add(ConvertPcCustomSongs
+                ? "This file name ends in _p.psarc. Convert PC custom songs can write a Mac copy. Official Ubisoft packages are refused."
+                : "This file name ends in _p.psarc. The Mac game will not load it. Conversion is off until you turn it on. It is for custom songs only.");
+        }
         if (song.IsDuplicate)
             lines.Add("Duplicate: " + row.Duplicate + ".");
         if (song.ReadError is not null)
             lines.Add(song.ReadError);
 
-        lines.Add("Package contents are not read in this version.");
+        lines.Add("Song files are renamed or moved. Package contents are read only when you convert a PC custom song.");
         return string.Join(Environment.NewLine, lines);
     }
+
+    private string ResolveKeysPath() => ConversionKeys.ResolvePath(_settings.ConversionKeysPath);
 
     private static string Display(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
     private static bool Contains(string? value, string query) =>

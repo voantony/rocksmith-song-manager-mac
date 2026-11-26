@@ -8,7 +8,7 @@
     <Version>0.2.0</Version>
     <Company>Antony Vo</Company>
     <Product>Mac Song Manager</Product>
-    <Copyright>Copyright © 2026 Antony Vo. Conversion support adapted from glebb/rocksmithconvert (GPL-3.0-or-later) and pyrocksmith by 0x0L (MIT).</Copyright>
+    <Copyright>Copyright © 2026 Antony Vo. PC-to-Mac conversion adapted from glebb/rocksmithconvert (GPL-3.0-or-later). Archive layer adapted from pyrocksmith by 0x0L (MIT).</Copyright>
     <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
     <NeutralLanguage>en</NeutralLanguage>
   </PropertyGroup>

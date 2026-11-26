@@ -1,3 +1,4 @@
+using MacSongManager.Core.Conversion;
 using MacSongManager.Core.Safety;
 using MacSongManager.Core.Songs;
 
@@ -135,14 +136,37 @@ public static class ChangePlanner
         return new ChangePlan(ChangeKind.Rename, changes, skipped);
     }
 
-    public static ChangePlan PlanConvert(string libraryRoot, IEnumerable<SongRecord> songs)
+    public static ChangePlan PlanConvert(
+        string libraryRoot,
+        IEnumerable<SongRecord> songs,
+        bool conversionEnabled,
+        ConversionKeys? keys)
     {
+        var list = songs.ToList();
+        if (!conversionEnabled)
+        {
+            return new ChangePlan(
+                ChangeKind.Convert,
+                [],
+                list.Select(song => new SkippedChange(song.FullPath, ConversionKeys.DisabledMessage)).ToList());
+        }
+
+        if (keys is null)
+        {
+            return new ChangePlan(
+                ChangeKind.Convert,
+                [],
+                list.Select(song => new SkippedChange(
+                    song.FullPath,
+                    "Conversion keys are missing. Mac Song Manager does not include these keys.")).ToList());
+        }
+
         var root = Path.GetFullPath(libraryRoot);
         var changes = new List<PlannedChange>();
         var skipped = new List<SkippedChange>();
         var reserved = new HashSet<string>(PathComparer);
         var macStems = MacStems(root);
-        foreach (var song in songs)
+        foreach (var song in list)
         {
             if (!TryAcceptCustom(root, song, skipped, out var source))
                 continue;
@@ -169,7 +193,15 @@ public static class ChangePlanner
             if (!Reserve(destination, source, reserved, skipped, song.FullPath, "The converted file already exists."))
                 continue;
 
-            changes.Add(new PlannedChange(ChangeKind.Convert, source, destination, "Convert PC file to Mac"));
+            var problem = PlatformPackageConverter.CheckConvertible(source, keys);
+            if (problem is not null)
+            {
+                reserved.Remove(destination);
+                skipped.Add(new SkippedChange(song.FullPath, problem));
+                continue;
+            }
+
+            changes.Add(new PlannedChange(ChangeKind.Convert, source, destination, "Convert PC custom song to Mac"));
         }
 
         return new ChangePlan(ChangeKind.Convert, changes, skipped);

@@ -64,7 +64,28 @@ public partial class MainWindow : Window
     }
 
     private async void OnRename(object? sender, RoutedEventArgs e) => await RunAsync(_model.PlanFriendlyRename());
+
     private async void OnConvert(object? sender, RoutedEventArgs e) => await RunAsync(_model.PlanConvert());
+
+    private async void OnChooseKeys(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Choose the conversion keys file",
+            AllowMultiple = false
+        });
+        if (files.Count == 0)
+            return;
+
+        var path = files[0].TryGetLocalPath();
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            _model.StatusMessage = "That file is not available as a local path.";
+            return;
+        }
+
+        _model.SetConversionKeysPath(path);
+    }
 
     private async void OnEditTags(object? sender, RoutedEventArgs e)
     {

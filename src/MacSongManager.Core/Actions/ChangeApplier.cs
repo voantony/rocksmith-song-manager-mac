@@ -89,8 +89,41 @@ public sealed class ChangeApplier
         _log = log;
     }
 
-    public ApplyResult Apply(string libraryRoot, string trashRoot, ChangePlan plan, bool dryRun)
+    public ApplyResult Apply(
+        string libraryRoot,
+        string trashRoot,
+        ChangePlan plan,
+        bool dryRun,
+        bool convertPcCustomSongs = false,
+        ConversionKeys? keys = null)
     {
+        if (plan.Changes.Any(change => change.Kind == ChangeKind.Convert))
+        {
+            if (!convertPcCustomSongs)
+            {
+                return new ApplyResult(dryRun, false, ConversionKeys.DisabledMessage, plan, null);
+            }
+
+            if (keys is null)
+            {
+                return new ApplyResult(
+                    dryRun,
+                    false,
+                    "Conversion keys are missing. Mac Song Manager does not include these keys.",
+                    plan,
+                    null);
+            }
+
+            foreach (var change in plan.Changes)
+            {
+                if (change.Kind != ChangeKind.Convert)
+                    continue;
+                var problem = PlatformPackageConverter.CheckConvertible(change.SourcePath, keys);
+                if (problem is not null)
+                    return new ApplyResult(dryRun, false, problem, plan, null);
+            }
+        }
+
         if (!plan.HasWork)
         {
             return new ApplyResult(dryRun, true, "No files to change.", plan, null);
@@ -141,13 +174,13 @@ public sealed class ChangeApplier
                 if (!string.IsNullOrEmpty(parent))
                     Directory.CreateDirectory(parent);
                 if (change.Kind == ChangeKind.Convert)
-                    PlatformPackageConverter.ConvertPcToMac(change.SourcePath, change.DestinationPath);
+                    PlatformPackageConverter.ConvertPcToMac(change.SourcePath, change.DestinationPath, keys!);
                 else
                     File.Move(change.SourcePath, change.DestinationPath);
                 done.Add(change);
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or CryptographicException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or CryptographicException or ConversionException)
         {
             var rollbackNote = Rollback(done, trashRoot);
             var message = $"Stopped before finishing the batch: {ex.Message}";

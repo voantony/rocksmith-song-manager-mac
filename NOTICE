@@ -21,20 +21,30 @@ PC-to-Mac conversion is adapted from:
   https://github.com/glebb/rocksmithconvert
   License: GPL-3.0-or-later
 
-  The archive read/write and chart wrapping are ported from pyrocksmith,
-  which rocksmithconvert uses:
+  Files adapted into C#:
+    macos/Sources/RSConvertCore/Crypto.swift
+    macos/Sources/RSConvertCore/Platform.swift
+    macos/Sources/RSConvertCore/Converter.swift
+    macos/Sources/RSConvertCore/PSARC.swift (table layout)
+
+  The archive read/write also derives from pyrocksmith, which implements
+  the same PSARC table:
 
   pyrocksmith
   Copyright (c) 2016 0x0L
   https://github.com/0x0L/rocksmith
   License: MIT
 
-Modifications in 2026 by Antony Vo: both parts were ported from Python to C#
-for Mac Song Manager. The port converts PC packages to Mac only. It does not
-use rocksmithconvert's short-name rewrite or its optional app-id replacement.
-Text path updates are also applied to JSON, HSAN, and XML entries, not only
-to aggregategraph.nt. The full GPL-3.0 license is in the file LICENSE. The
-MIT terms for the pyrocksmith portion are below.
+Modified by Antony Vo (2026-11-26): the Swift conversion code was ported
+to C# for Mac Song Manager. The port converts PC custom songs to Mac.
+Chart entries are re-keyed in place (compressed payload, IV, and the
+56-byte signature stay put). Aggregate-graph paths are updated on the
+raw bytes. Rename schemes and app-id replacement from rocksmithconvert
+are not part of this port. The key and IV bytes are not in this source
+tree; the user supplies a keys file. Official packages, including
+songs.psarc, and packages with no toolkit.version marker are refused.
+The full GPL-3.0 license is in the file LICENSE. The MIT terms for the
+pyrocksmith portion are below.
 
 MIT License
 

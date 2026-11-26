@@ -50,6 +50,12 @@
             </ListBox.ItemTemplate>
           </ListBox>
           <TextBlock Text="{Binding SummaryLine}" Foreground="#D5E4E1" TextWrapping="Wrap" FontSize="12"/>
+          <StackPanel Spacing="6">
+            <CheckBox IsChecked="{Binding ConvertPcCustomSongs, Mode=TwoWay}" Foreground="White" Content="Convert PC custom songs"/>
+            <TextBlock Text="For custom songs only. Off until you turn this on. Official Ubisoft packages are refused." TextWrapping="Wrap" Foreground="#B7C6C4" FontSize="12"/>
+            <Button Content="Keys file…" Click="OnChooseKeys" HorizontalAlignment="Left"/>
+            <TextBlock Text="{Binding KeysFileNote}" TextWrapping="Wrap" Foreground="#8AA09C" FontSize="12"/>
+          </StackPanel>
         </StackPanel>
       </DockPanel>
     </Border>
@@ -68,13 +74,13 @@
         <Button Content="Rename to Artist - Title" Click="OnRename" IsEnabled="{Binding CanAct}"/>
         <Button Content="Edit tags" Click="OnEditTags" IsEnabled="{Binding CanAct}"/>
         <Button Content="Fix tags" Click="OnFixTags" IsEnabled="{Binding CanAct}"/>
-        <Button Content="Convert PC songs" Click="OnConvert" IsEnabled="{Binding CanAct}"/>
+        <Button Content="Convert PC songs" Click="OnConvert" IsEnabled="{Binding CanConvert}"/>
         <Button Content="Backup list" Click="OnBackup"/>
         <Button Content="Restore list" Click="OnRestore" IsEnabled="{Binding CanAct}"/>
         <Button Content="Save setlist" Click="OnSaveSetlist"/>
       </StackPanel>
       <TextBlock Grid.Row="2" Foreground="{StaticResource MsmMuted}" TextWrapping="Wrap"
-                 Text="Every change is previewed first. Rename uses Artist - Title and keeps the _m suffix. Convert PC songs writes a new Mac file under converted-from-pc and leaves the original in place."/>
+                 Text="Every change is previewed first. Rename uses Artist - Title and keeps the _m suffix. Convert PC songs stays off until you turn it on. It is for custom songs only, writes a new Mac file under converted-from-pc, and leaves the original in place."/>
       <Border Grid.Row="4" Padding="12" Background="White" CornerRadius="10" MinHeight="92">
         <TextBlock Text="{Binding DetailText}" TextWrapping="Wrap" Foreground="{StaticResource MsmInk}"/>
       </Border>

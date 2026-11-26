@@ -4,9 +4,19 @@ using System.Text;
 
 namespace MacSongManager.Core.Conversion;
 
-// Ported to C# in 2026 for Mac Song Manager from pyrocksmith rocksmith/psarc.py
+// Ported to C# for Mac Song Manager from pyrocksmith rocksmith/psarc.py
 // Copyright (c) 2016 0x0L, MIT License.
-// Modifications: no construct dependency; big-endian fields are read by hand.
+// https://github.com/0x0L/rocksmith
+//
+// The table layout also matches rocksmithconvert
+// macos/Sources/RSConvertCore/PSARC.swift
+// Copyright glebb, GPL-3.0-or-later.
+// https://github.com/glebb/rocksmithconvert
+//
+// Modified by Antony Vo (2026-11-26): encryption keys are passed in by the
+// caller and are not stored in this file. Entry order follows the archive
+// listing. Earlier in 2026 the Python parser was rewritten in C# without the
+// construct dependency; multi-byte integers are read by hand.
 public static class PsarcArchive
 {
     private const int BlockSize = 65536;
@@ -14,13 +24,13 @@ public static class PsarcArchive
     private const uint Version = 65540;
     private const uint ArchiveFlags = 4;
 
-    public static Dictionary<string, byte[]> Read(string path, bool decryptCharts)
+    public static Dictionary<string, byte[]> Read(string path, ConversionKeys keys, bool decryptCharts)
     {
         using var stream = File.OpenRead(path);
-        return Read(stream, decryptCharts);
+        return Read(stream, keys, decryptCharts);
     }
 
-    public static Dictionary<string, byte[]> Read(Stream stream, bool decryptCharts)
+    public static Dictionary<string, byte[]> Read(Stream stream, ConversionKeys keys, bool decryptCharts)
     {
         using var reader = new BinaryReader(stream, Encoding.ASCII, leaveOpen: true);
         var magic = reader.ReadBytes(4);
@@ -41,7 +51,7 @@ public static class PsarcArchive
             throw new InvalidDataException("Unsupported PSARC table.");
 
         var bomSize = checked((int)headerSize - 32);
-        var bom = PackageCrypto.DecryptBom(reader.ReadBytes(bomSize));
+        var bom = PackageCrypto.DecryptToc(reader.ReadBytes(bomSize), keys);
         var (entries, zLengths) = ParseBom(bom, (int)entryCount);
         var blobs = new byte[entryCount][];
         for (var i = 0; i < entryCount; i++)
@@ -57,25 +67,25 @@ public static class PsarcArchive
         for (var i = 0; i < listing.Length; i++)
             content[listing[i]] = blobs[i + 1];
 
-        return decryptCharts ? PackageCrypto.DecryptContents(content) : content;
+        return decryptCharts ? PackageCrypto.DecryptCharts(content, keys) : content;
     }
 
-    public static void Write(string path, Dictionary<string, byte[]> content, bool encryptCharts)
+    public static void Write(string path, Dictionary<string, byte[]> content, ConversionKeys keys, bool encryptCharts)
     {
         var directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory))
             Directory.CreateDirectory(directory);
 
         using var stream = File.Create(path);
-        Write(stream, content, encryptCharts);
+        Write(stream, content, keys, encryptCharts);
     }
 
-    public static void Write(Stream stream, Dictionary<string, byte[]> content, bool encryptCharts)
+    public static void Write(Stream stream, Dictionary<string, byte[]> content, ConversionKeys keys, bool encryptCharts)
     {
         if (encryptCharts)
-            content = PackageCrypto.EncryptContents(content);
+            content = PackageCrypto.EncryptCharts(content, keys);
 
-        var names = content.Keys.OrderByDescending(name => name, StringComparer.Ordinal).ToList();
+        var names = content.Keys.ToList();
         var blobs = new List<byte[]>(names.Count + 1) { Encoding.UTF8.GetBytes(string.Join('\n', names)) };
         foreach (var name in names)
             blobs.Add(content[name]);
@@ -86,16 +96,12 @@ public static class PsarcArchive
             packed.Add(PackEntry(names[i], blobs[i + 1]));
 
         var zLengths = new List<ushort>();
-        long dataLength = 0;
         foreach (var entry in packed)
-        {
-            dataLength += entry.Data.Length;
             zLengths.AddRange(entry.BlockLengths);
-        }
 
         var headerSize = 32 + (EntrySize * packed.Count) + (2 * zLengths.Count);
         var bom = BuildBom(packed, zLengths, headerSize);
-        var encryptedBom = PackageCrypto.EncryptBom(bom);
+        var encryptedBom = PackageCrypto.EncryptToc(bom, keys);
         if (encryptedBom.Length != headerSize - 32)
             throw new InvalidDataException("PSARC table size mismatch.");
 
@@ -160,26 +166,39 @@ public static class PsarcArchive
 
     private static byte[] ReadEntry(Stream stream, Entry entry, ushort[] zLengths)
     {
+        // Same rule as rocksmithconvert PSARC.swift: a block whose stored size
+        // equals the uncompressed size was written raw. Only a shorter block
+        // is zlib data. Trying inflate on raw bytes can succeed by accident.
         stream.Position = entry.Offset;
         using var output = new MemoryStream();
-        var produced = 0L;
-        for (var index = entry.ZIndex; produced < entry.Length && index < zLengths.Length; index++)
+        var produced = 0;
+        var blocks = entry.Length == 0 ? 0 : (int)((entry.Length + BlockSize - 1) / BlockSize);
+        for (var n = 0; n < blocks; n++)
         {
+            var index = entry.ZIndex + n;
+            if (index < 0 || index >= zLengths.Length)
+                throw new InvalidDataException("PSARC block index is out of range.");
+
+            var expected = (int)Math.Min(BlockSize, entry.Length - produced);
             var stored = zLengths[index] == 0 ? BlockSize : zLengths[index];
             var chunk = new byte[stored];
             var read = stream.Read(chunk, 0, stored);
             if (read != stored)
                 throw new EndOfStreamException("PSARC entry is truncated.");
-            try
-            {
-                output.Write(PackageCrypto.Inflate(chunk));
-            }
-            catch (InvalidDataException)
+
+            if (stored == expected)
             {
                 output.Write(chunk);
             }
+            else
+            {
+                var inflated = PackageCrypto.Inflate(chunk);
+                if (inflated.Length != expected)
+                    throw new InvalidDataException("PSARC entry length does not match.");
+                output.Write(inflated);
+            }
 
-            produced = output.Length;
+            produced += expected;
         }
 
         if (output.Length != entry.Length)
