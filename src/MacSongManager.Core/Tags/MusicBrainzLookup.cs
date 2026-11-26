@@ -35,7 +35,7 @@ public sealed class RequestPacer
 
 public sealed class MusicBrainzLookup : ITagLookup
 {
-    public const string UserAgent = "MacSongManager/0.2.0 (https://github.com/voantony/rocksmith-song-manager-mac)";
+    public const string UserAgent = "MacSongManager/0.3.0 (https://github.com/voantony/rocksmith-song-manager-mac)";
 
     private readonly HttpClient _http;
     private readonly RequestPacer _pacer;

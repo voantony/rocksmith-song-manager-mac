@@ -4,7 +4,7 @@ Mac Song Manager is a small Mac app for Rocksmith 2014 custom songs. It lists th
 
 It is unofficial and is not affiliated with Ubisoft or CustomsForge. The program is licensed under GPL-3.0-or-later.
 
-Library tags come from file names. PC-to-Mac conversion opens a package only to swap the platform layout, using code adapted from glebb's rocksmithconvert. See NOTICE.
+Artist, title, album, year, arrangements, and tuning are read from the package manifest. A saved edit wins over the manifest, and the manifest wins over the file name. PC-to-Mac conversion uses code adapted from glebb's rocksmithconvert. See NOTICE.
 
 ![Library](docs/images/library.png)
 
@@ -15,9 +15,10 @@ Library tags come from file names. PC-to-Mac conversion opens a package only to 
 - Starts in `~/Library/Application Support/Steam/steamapps/common/Rocksmith2014/dlc`. You can pick another folder. Subfolders are included.
 - Lists `*_m.psarc` as enabled and `*_m.disabled.psarc` as disabled.
 - Flags `*_p.psarc` and `*_p.disabled.psarc`, and can convert them into `dlc/converted-from-pc/` as `*_m.psarc`. The original PC file stays in place. A song that already has a Mac file is skipped.
-- Parses artist, title, version, and author from CamelCase hyphen names (`Creed-OneLastBreath_m.psarc`), `Artist - Title`, and `Artist_Title_v1_DD` names. Low-confidence names are marked for review.
-- Lets you edit artist and title. Edits are stored in the app's tag file, not inside the song file. Fix tags can ask MusicBrainz, one request per second, and you accept each suggestion.
-- Renames files to `Artist - Song Title_m.psarc`, keeping `_m` or `_m.disabled`.
+- Reads artist, title, album, year, arrangements, and tuning from each package's manifest. Only the archive table and the manifest entries are inflated. The result is cached by file hash, so a later scan of an unchanged file does not open it again.
+- Parses CamelCase hyphen names (`Creed-OneLastBreath_m.psarc`), `Artist - Title`, and `Artist_Title_v1_DD` names when a package has no manifest. Low-confidence names are marked for review.
+- Lets you edit artist and title. Edits are stored in the app's tag file, not inside the song file, and they win over the manifest. Fix tags can ask MusicBrainz, one request per second, and you accept each suggestion. A MusicBrainz suggestion is used when the file name is low confidence and the package has no artist or title.
+- Renames files to `Artist - Song Title_m.psarc`, using the artist and title shown in the list.
 - Searches, filters, and sorts the list.
 - Enables or disables Mac files by renaming `_m.psarc` and `_m.disabled.psarc`, including a selection of files.
 - Moves files into an artist subfolder, after a preview.
@@ -49,7 +50,7 @@ The window UI uses [Avalonia](https://github.com/AvaloniaUI/Avalonia), MIT.
 
 ## Install
 
-Download `MacSongManager-0.1.0-osx-arm64.zip` on Apple silicon, or the `osx-x64` zip on Intel. Unzip it and move `Mac Song Manager.app` to Applications.
+Download `MacSongManager-0.3.0-osx-arm64.zip` on Apple silicon, or the `osx-x64` zip on Intel. Unzip it and move `Mac Song Manager.app` to Applications.
 
 The build is unsigned and not notarized. macOS may block the first open. Right-click the app, choose **Open**, then confirm. Or, in Terminal:
 
@@ -90,7 +91,6 @@ PC files can be filed into an artist folder or moved to trash. They cannot be en
 
 ## What this version does not do
 
-- The song list does not show arrangements or an in-package key. Artist and title come from the file name, your edits, or MusicBrainz.
 - It does not sync a song catalog with a website. Fix tags is a MusicBrainz search you start yourself.
 - It does not import FLAC or MP3. That seam is still unused. See [docs/roadmap.md](docs/roadmap.md).
 

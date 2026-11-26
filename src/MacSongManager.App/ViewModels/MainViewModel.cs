@@ -61,20 +61,18 @@ public sealed class SongRow : INotifyPropertyChanged
         }
     }
 
-    public string Status
+    public string Status => Song.FileKind switch
     {
-        get
-        {
-            var label = Song.FileKind switch
-            {
-                SongFileKind.MacEnabled => "Enabled",
-                SongFileKind.MacDisabled => "Disabled",
-                SongFileKind.PcFormat => "PC format",
-                _ => "Other"
-            };
-            return Song.Confidence == ParseConfidence.Low && !Song.HasTagOverride ? label + " · review" : label;
-        }
-    }
+        SongFileKind.MacEnabled => "Enabled",
+        SongFileKind.MacDisabled => "Disabled",
+        SongFileKind.PcFormat => "PC format",
+        _ => "Other"
+    };
+
+    public string Album => Song.Album ?? "";
+    public string Year => Song.Year?.ToString() ?? "";
+    public string Arrangements => Song.Arrangements ?? "";
+    public string Tuning => Song.Tuning ?? "";
 
     public string Artist => Song.Artist ?? "";
     public string Title => Song.Title ?? "";
@@ -208,7 +206,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string AppName => AppPaths.DisplayName;
     public string Tagline => "For Rocksmith 2014 custom songs";
-    public string VersionLabel => "Version 0.2.0";
+    public string VersionLabel => "Version 0.3.0";
+    public double ScanPercent { get; private set; }
     public string Disclaimer => "Unofficial. Not affiliated with Ubisoft.";
     public string ImporterNote => _importer.UnavailableReason;
     public bool CanImportAudio => _importer.IsAvailable;
@@ -273,16 +272,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
 
         IsBusy = true;
-        StatusMessage = "Scanning file names…";
+        ScanPercent = 0;
+        OnPropertyChanged(nameof(ScanPercent));
+        StatusMessage = "Reading the library…";
         try
         {
             _settings.LibraryPath = LibraryPath;
             SettingsStore.Save(_settingsPath, _settings);
             var progress = new Progress<ScanProgress>(update =>
-                StatusMessage = $"Reading {update.Completed} of {update.Total}…");
-            var result = await _scanner.ScanAsync(LibraryPath, CancellationToken.None, progress);
+            {
+                ScanPercent = update.Total == 0 ? 0 : 100.0 * update.Completed / update.Total;
+                StatusMessage = $"Reading {update.Completed} of {update.Total}: {update.FileName}";
+                OnPropertyChanged(nameof(ScanPercent));
+            });
+            var result = await Task.Run(() => _scanner.ScanAsync(LibraryPath, CancellationToken.None, progress));
             ReplaceRows(result.Songs);
             var warning = result.Warnings.Count == 0 ? "" : " " + string.Join(" ", result.Warnings);
+            ScanPercent = 100;
+            OnPropertyChanged(nameof(ScanPercent));
             StatusMessage = $"{result.Songs.Count} custom song file(s).{warning}";
         }
         catch (Exception ex)
@@ -500,6 +507,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var query = SearchText.Trim();
         return Contains(row.Artist, query)
             || Contains(row.Title, query)
+            || Contains(row.Album, query)
+            || Contains(row.Arrangements, query)
+            || Contains(row.Tuning, query)
             || Contains(row.Author, query)
             || Contains(row.Version, query)
             || Contains(row.File, query)
@@ -539,6 +549,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         "Status" => row.Status,
         "Title" => row.Title,
+        "Album" => row.Album,
+        "Year" => row.Year,
+        "Arrangements" => row.Arrangements,
+        "Tuning" => row.Tuning,
         "Version" => row.Version,
         "Author" => row.Author,
         "File" => row.File,
@@ -557,7 +571,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var lines = new List<string>
         {
             $"{Display(song.Artist)} — {Display(song.Title)}",
-            $"Version {Display(song.Version)} · {Display(song.Author)}",
+            $"{Display(song.Album)} · {Display(song.Year?.ToString())}",
+            $"{Display(song.Arrangements)} · {Display(song.Tuning)}",
+            $"Version {Display(song.Version)} · {Display(song.Author)} · {song.TagSource}",
             $"{row.Status} · {song.Confidence} confidence · {row.Size}" + (song.ContentHash is { Length: > 0 } hash ? $" · {hash}" : ""),
             song.RelativePath,
             song.FullPath
@@ -570,7 +586,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (song.ReadError is not null)
             lines.Add(song.ReadError);
 
-        lines.Add("Package contents are not read in this version.");
+        if (!string.IsNullOrWhiteSpace(song.DlcKey))
+            lines.Add("Key " + song.DlcKey);
         return string.Join(Environment.NewLine, lines);
     }
 

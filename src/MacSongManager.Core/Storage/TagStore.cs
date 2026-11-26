@@ -1,4 +1,5 @@
 using System.Text.Json;
+using MacSongManager.Core.Library;
 
 namespace MacSongManager.Core.Storage;
 
@@ -7,11 +8,27 @@ public sealed class TagOverride
     public string Artist { get; set; } = "";
     public string Title { get; set; } = "";
     public string Source { get; set; } = "user";
+    public string? ManifestArtist { get; set; }
+    public string? ManifestTitle { get; set; }
+    public string? Album { get; set; }
+    public int? Year { get; set; }
+    public string? Arrangements { get; set; }
+    public string? Tuning { get; set; }
+    public string? DlcKey { get; set; }
+    public bool ManifestCached { get; set; }
+}
+
+public sealed class FileStamp
+{
+    public long Length { get; set; }
+    public long LastWriteUtcTicks { get; set; }
+    public string Hash { get; set; } = "";
 }
 
 public sealed class TagFile
 {
     public Dictionary<string, TagOverride> Songs { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, FileStamp> Files { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, List<string>> Setlists { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
@@ -21,6 +38,7 @@ public sealed class TagStore
     private readonly string _path;
     private readonly object _gate = new();
     private TagFile _file;
+    private bool _dirty;
 
     public TagStore(string path)
     {
@@ -40,8 +58,64 @@ public sealed class TagStore
     {
         lock (_gate)
         {
-            _file.Songs[hash] = new TagOverride { Artist = artist, Title = title, Source = source };
+            if (!_file.Songs.TryGetValue(hash, out var tag))
+                tag = new TagOverride();
+            tag.Artist = artist;
+            tag.Title = title;
+            tag.Source = source;
+            _file.Songs[hash] = tag;
             Persist();
+            _dirty = false;
+        }
+    }
+
+    public void RememberManifest(string hash, PackageManifest manifest)
+    {
+        lock (_gate)
+        {
+            if (!_file.Songs.TryGetValue(hash, out var tag))
+                tag = new TagOverride { Source = "" };
+            tag.ManifestArtist = manifest.Artist;
+            tag.ManifestTitle = manifest.Title;
+            tag.Album = manifest.Album;
+            tag.Year = manifest.Year;
+            tag.Arrangements = manifest.Arrangements;
+            tag.Tuning = manifest.Tuning;
+            tag.DlcKey = manifest.DlcKey;
+            tag.ManifestCached = true;
+            _file.Songs[hash] = tag;
+            _dirty = true;
+        }
+    }
+
+    public FileStamp? FindStamp(string relativePath)
+    {
+        lock (_gate)
+            return _file.Files.TryGetValue(Normalize(relativePath), out var stamp) ? stamp : null;
+    }
+
+    public void RememberStamp(string relativePath, long length, long lastWriteUtcTicks, string hash)
+    {
+        lock (_gate)
+        {
+            _file.Files[Normalize(relativePath)] = new FileStamp
+            {
+                Length = length,
+                LastWriteUtcTicks = lastWriteUtcTicks,
+                Hash = hash
+            };
+            _dirty = true;
+        }
+    }
+
+    public void Flush()
+    {
+        lock (_gate)
+        {
+            if (!_dirty)
+                return;
+            Persist();
+            _dirty = false;
         }
     }
 
@@ -79,6 +153,9 @@ public sealed class TagStore
             return new TagFile();
         }
     }
+
+    private static string Normalize(string relativePath) =>
+        relativePath.Replace('\\', '/');
 
     private void Persist()
     {

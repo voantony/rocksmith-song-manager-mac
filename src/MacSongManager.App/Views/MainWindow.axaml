@@ -4,9 +4,9 @@
         x:Class="MacSongManager.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Mac Song Manager"
-        Width="1180"
-        Height="760"
-        MinWidth="920"
+        Width="1440"
+        Height="800"
+        MinWidth="1180"
         MinHeight="560"
         Icon="avares://MacSongManager/Assets/app-icon.png"
         Background="{StaticResource MsmPaper}">
@@ -21,7 +21,10 @@
     </Border>
 
     <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="{StaticResource MsmLine}" BorderThickness="0,1,0,0" Padding="16,8">
-      <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource MsmMuted}" TextWrapping="Wrap"/>
+      <StackPanel Spacing="6">
+        <ProgressBar Minimum="0" Maximum="100" Value="{Binding ScanPercent}" Height="6" IsVisible="{Binding IsBusy}" Foreground="{StaticResource MsmAccent}"/>
+        <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource MsmMuted}" TextWrapping="Wrap"/>
+      </StackPanel>
     </Border>
 
     <Border Grid.IsSharedSizeScope="False" Width="248" DockPanel.Dock="Left" Background="{StaticResource MsmSidebar}" Padding="16,18">
@@ -79,35 +82,39 @@
         <TextBlock Text="{Binding DetailText}" TextWrapping="Wrap" Foreground="{StaticResource MsmInk}"/>
       </Border>
       <Border Grid.Row="3" Background="White" CornerRadius="10" Padding="4">
-        <Grid RowDefinitions="Auto,*">
-          <Grid Grid.Row="0" ColumnDefinitions="36,88,130,170,60,90,*,72,130" Margin="8,4">
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <Grid RowDefinitions="Auto,*" MinWidth="1200">
+          <Grid Grid.Row="0" ColumnDefinitions="36,120,160,200,140,56,150,110,*,72" Margin="8,4">
             <Button Grid.Column="1" Content="Status" Classes="quiet" Click="OnSort" Tag="Status"/>
             <Button Grid.Column="2" Content="Artist" Classes="quiet" Click="OnSort" Tag="Artist"/>
             <Button Grid.Column="3" Content="Title" Classes="quiet" Click="OnSort" Tag="Title"/>
-            <Button Grid.Column="4" Content="Version" Classes="quiet" Click="OnSort" Tag="Version"/>
-            <Button Grid.Column="5" Content="Author" Classes="quiet" Click="OnSort" Tag="Author"/>
-            <Button Grid.Column="6" Content="File" Classes="quiet" Click="OnSort" Tag="File"/>
-            <Button Grid.Column="7" Content="Size" Classes="quiet" Click="OnSort" Tag="Size"/>
-            <Button Grid.Column="8" Content="Duplicate" Classes="quiet" Click="OnSort" Tag="Duplicate"/>
+            <Button Grid.Column="4" Content="Album" Classes="quiet" Click="OnSort" Tag="Album"/>
+            <Button Grid.Column="5" Content="Year" Classes="quiet" Click="OnSort" Tag="Year"/>
+            <Button Grid.Column="6" Content="Arrangements" Classes="quiet" Click="OnSort" Tag="Arrangements"/>
+            <Button Grid.Column="7" Content="Tuning" Classes="quiet" Click="OnSort" Tag="Tuning"/>
+            <Button Grid.Column="8" Content="File" Classes="quiet" Click="OnSort" Tag="File"/>
+            <Button Grid.Column="9" Content="Size" Classes="quiet" Click="OnSort" Tag="Size"/>
           </Grid>
           <ListBox Grid.Row="1" ItemsSource="{Binding VisibleRows}" SelectedItem="{Binding SelectedRow}" Background="Transparent" BorderThickness="0">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:SongRow">
-                <Grid ColumnDefinitions="36,88,130,170,60,90,*,72,130">
+                <Grid ColumnDefinitions="36,120,160,200,140,56,150,110,*,72">
                   <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" HorizontalAlignment="Center"/>
-                  <TextBlock Grid.Column="1" Text="{Binding Status}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                  <TextBlock Grid.Column="1" Text="{Binding Status}" VerticalAlignment="Center"/>
                   <TextBlock Grid.Column="2" Text="{Binding Artist}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                   <TextBlock Grid.Column="3" Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                  <TextBlock Grid.Column="4" Text="{Binding Version}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                  <TextBlock Grid.Column="5" Text="{Binding Author}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                  <TextBlock Grid.Column="6" Text="{Binding File}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                  <TextBlock Grid.Column="7" Text="{Binding Size}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                  <TextBlock Grid.Column="8" Text="{Binding Duplicate}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                  <TextBlock Grid.Column="4" Text="{Binding Album}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                  <TextBlock Grid.Column="5" Text="{Binding Year}" VerticalAlignment="Center"/>
+                  <TextBlock Grid.Column="6" Text="{Binding Arrangements}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                  <TextBlock Grid.Column="7" Text="{Binding Tuning}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                  <TextBlock Grid.Column="8" Text="{Binding File}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                  <TextBlock Grid.Column="9" Text="{Binding Size}" VerticalAlignment="Center"/>
                 </Grid>
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
         </Grid>
+        </ScrollViewer>
       </Border>
     </Grid>
   </DockPanel>

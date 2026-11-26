@@ -1,3 +1,4 @@
+using MacSongManager.Core.Conversion;
 using MacSongManager.Core.Safety;
 using MacSongManager.Core.Songs;
 using MacSongManager.Core.Storage;
@@ -14,8 +15,8 @@ public sealed record ScanResult(
     int IgnoredOther);
 
 /// <summary>
-/// Lists custom song files by name. File bytes are hashed only.
-/// Packages are not opened, and official game files are not modified.
+/// Lists song files. Manifest JSON is inflated on a cache miss.
+/// Official game archives such as songs.psarc are not modified.
 /// </summary>
 public sealed class LibraryScanner
 {
@@ -82,6 +83,8 @@ public sealed class LibraryScanner
             records.Add(record);
         }
 
+        _tags?.Flush();
+
         if (skippedOfficial > 0)
             warnings.Add($"Left {skippedOfficial} official file(s) unchanged, including songs.psarc when present.");
 
@@ -104,48 +107,99 @@ public sealed class LibraryScanner
     {
         var info = new FileInfo(file);
         var parsed = FilenameMetadataParser.Parse(file);
-        string? hash = null;
+        var relativePath = Path.GetRelativePath(root, file);
+        var length = info.Exists ? info.Length : 0;
+        var writeTicks = info.Exists ? info.LastWriteTimeUtc.Ticks : 0;
+        var stamp = tags?.FindStamp(relativePath);
+        var stampFresh = stamp is not null
+            && stamp.Length == length
+            && stamp.LastWriteUtcTicks == writeTicks
+            && !string.IsNullOrWhiteSpace(stamp.Hash);
+        string? hash = stampFresh ? stamp!.Hash : null;
         string? error = null;
-        try
+        if (!stampFresh)
         {
-            hash = await FileHasher.Sha256Async(file, cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            error = ex.Message;
+            try
+            {
+                hash = await FileHasher.Sha256Async(file, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                error = ex.Message;
+            }
         }
 
-        var artist = parsed.Artist;
-        var title = parsed.Title;
-        var confidence = parsed.Confidence;
-        var source = confidence == ParseConfidence.High && !string.IsNullOrWhiteSpace(parsed.Artist) && OfficialSongNames.TryResolve(SongFileNames.Stem(file), out _, out _)
-            ? "builtin"
-            : "filename";
         var saved = tags?.Find(hash);
-        if (saved is not null && !string.IsNullOrWhiteSpace(saved.Artist) && !string.IsNullOrWhiteSpace(saved.Title))
+        PackageManifest? manifest = null;
+        if (saved is { ManifestCached: true })
         {
-            artist = saved.Artist;
-            title = saved.Title;
-            confidence = ParseConfidence.High;
-            source = saved.Source;
+            manifest = new PackageManifest(
+                saved.ManifestArtist, saved.ManifestTitle, saved.Album, saved.Year,
+                saved.Arrangements, saved.Tuning, saved.DlcKey);
+        }
+        else if (error is null)
+        {
+            try
+            {
+                var documents = PsarcArchive.ReadManifests(file);
+                manifest = ManifestMetadata.Read(documents.Values);
+                if (hash is not null)
+                    tags?.RememberManifest(hash, manifest ?? new PackageManifest(null, null, null, null, null, null, null));
+            }
+            catch (InvalidDataException ex) when (ex.Message == "Not a PSARC archive.")
+            {
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Security.Cryptography.CryptographicException)
+            {
+                error ??= ex.Message;
+            }
         }
 
+        if (!stampFresh && hash is not null)
+            tags?.RememberStamp(relativePath, length, writeTicks, hash);
+
+        var (artist, title, confidence, source) = Resolve(parsed, saved, manifest);
         return new SongRecord
         {
             FullPath = Path.GetFullPath(file),
-            RelativePath = Path.GetRelativePath(root, file),
+            RelativePath = relativePath,
             FileName = info.Name,
             SizeBytes = info.Exists ? info.Length : 0,
             FileKind = kind,
             ReadError = error,
             Artist = artist,
             Title = title,
+            Album = manifest?.Album ?? saved?.Album,
+            Year = manifest?.Year ?? saved?.Year,
+            Arrangements = manifest?.Arrangements ?? saved?.Arrangements,
+            Tuning = manifest?.Tuning ?? saved?.Tuning,
+            DlcKey = manifest?.DlcKey ?? saved?.DlcKey,
             Version = parsed.Version,
             Author = parsed.Author,
             ContentHash = hash,
             Confidence = confidence,
             TagSource = source
         };
+    }
+
+    public static (string? Artist, string? Title, ParseConfidence Confidence, string Source) Resolve(
+        FilenameMetadata parsed,
+        TagOverride? saved,
+        PackageManifest? manifest)
+    {
+        if (saved?.Source == "user" && !string.IsNullOrWhiteSpace(saved.Artist) && !string.IsNullOrWhiteSpace(saved.Title))
+            return (saved.Artist, saved.Title, ParseConfidence.High, "user");
+
+        if (!string.IsNullOrWhiteSpace(manifest?.Artist) || !string.IsNullOrWhiteSpace(manifest?.Title))
+            return (manifest!.Artist, manifest.Title, ParseConfidence.High, "manifest");
+
+        if (parsed.Confidence != ParseConfidence.Low && !string.IsNullOrWhiteSpace(parsed.Title))
+            return (parsed.Artist, parsed.Title, parsed.Confidence, "filename");
+
+        if (saved?.Source == "musicbrainz" && !string.IsNullOrWhiteSpace(saved.Artist) && !string.IsNullOrWhiteSpace(saved.Title))
+            return (saved.Artist, saved.Title, ParseConfidence.High, "musicbrainz");
+
+        return (parsed.Artist, parsed.Title, parsed.Confidence, "filename");
     }
 
     private static List<string> EnumerateSongFiles(string root)

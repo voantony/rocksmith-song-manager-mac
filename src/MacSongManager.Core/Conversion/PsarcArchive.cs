@@ -16,36 +16,46 @@ public static class PsarcArchive
 
     public static Dictionary<string, byte[]> Read(string path, bool decryptCharts)
     {
-        using var stream = File.OpenRead(path);
+        using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         return Read(stream, decryptCharts);
+    }
+
+    /// <summary>
+    /// Reads the archive table and only the manifest JSON/HSAN entries.
+    /// Chart, audio, and artwork payloads stay compressed.
+    /// </summary>
+    public static Dictionary<string, byte[]> ReadManifests(string path)
+    {
+        using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new BinaryReader(stream, Encoding.ASCII, leaveOpen: true);
+        var table = ReadTable(reader);
+        if (table.Entries.Length == 0)
+            return [];
+
+        var listingBytes = ReadEntry(stream, table.Entries[0], table.Lengths);
+        var listing = Encoding.UTF8.GetString(listingBytes).Split('\n', StringSplitOptions.None);
+        if (listing.Length == 1 && listing[0].Length == 0)
+            listing = [];
+
+        var content = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        for (var i = 0; i < listing.Length && i + 1 < table.Entries.Length; i++)
+        {
+            if (!IsManifestName(listing[i]))
+                continue;
+            content[listing[i]] = ReadEntry(stream, table.Entries[i + 1], table.Lengths);
+        }
+
+        return content;
     }
 
     public static Dictionary<string, byte[]> Read(Stream stream, bool decryptCharts)
     {
         using var reader = new BinaryReader(stream, Encoding.ASCII, leaveOpen: true);
-        var magic = reader.ReadBytes(4);
-        if (!magic.AsSpan().SequenceEqual("PSAR"u8))
-            throw new InvalidDataException("Not a PSARC archive.");
-
-        var version = ReadUInt32Big(reader);
-        var compression = reader.ReadBytes(4);
-        if (version != Version || !compression.AsSpan().SequenceEqual("zlib"u8))
-            throw new InvalidDataException("Unsupported PSARC header.");
-
-        var headerSize = ReadUInt32Big(reader);
-        var entrySize = ReadUInt32Big(reader);
-        var entryCount = ReadUInt32Big(reader);
-        var blockSize = ReadUInt32Big(reader);
-        var flags = ReadUInt32Big(reader);
-        if (entrySize != EntrySize || blockSize != BlockSize || flags != ArchiveFlags)
-            throw new InvalidDataException("Unsupported PSARC table.");
-
-        var bomSize = checked((int)headerSize - 32);
-        var bom = PackageCrypto.DecryptBom(reader.ReadBytes(bomSize));
-        var (entries, zLengths) = ParseBom(bom, (int)entryCount);
+        var table = ReadTable(reader);
+        var entryCount = table.Entries.Length;
         var blobs = new byte[entryCount][];
         for (var i = 0; i < entryCount; i++)
-            blobs[i] = ReadEntry(stream, entries[i], zLengths);
+            blobs[i] = ReadEntry(stream, table.Entries[i], table.Lengths);
 
         var listing = Encoding.UTF8.GetString(blobs[0]).Split('\n', StringSplitOptions.None);
         if (listing.Length == 1 && listing[0].Length == 0)
@@ -133,6 +143,40 @@ public static class PsarcArchive
             WriteUInt16Big(writer, length);
 
         return bom.ToArray();
+    }
+
+    private static Table ReadTable(BinaryReader reader)
+    {
+        var magic = reader.ReadBytes(4);
+        if (!magic.AsSpan().SequenceEqual("PSAR"u8))
+            throw new InvalidDataException("Not a PSARC archive.");
+
+        var version = ReadUInt32Big(reader);
+        var compression = reader.ReadBytes(4);
+        if (version != Version || !compression.AsSpan().SequenceEqual("zlib"u8))
+            throw new InvalidDataException("Unsupported PSARC header.");
+
+        var headerSize = ReadUInt32Big(reader);
+        var entrySize = ReadUInt32Big(reader);
+        var entryCount = ReadUInt32Big(reader);
+        var blockSize = ReadUInt32Big(reader);
+        var flags = ReadUInt32Big(reader);
+        if (entrySize != EntrySize || blockSize != BlockSize || flags != ArchiveFlags)
+            throw new InvalidDataException("Unsupported PSARC table.");
+
+        var bomSize = checked((int)headerSize - 32);
+        var bom = PackageCrypto.DecryptBom(reader.ReadBytes(bomSize));
+        var (entries, lengths) = ParseBom(bom, (int)entryCount);
+        return new Table(entries, lengths);
+    }
+
+    private static bool IsManifestName(string name)
+    {
+        var normalized = name.Replace('\\', '/');
+        if (normalized.EndsWith(".hsan", StringComparison.OrdinalIgnoreCase))
+            return true;
+        return normalized.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+            && normalized.Contains("manifest", StringComparison.OrdinalIgnoreCase);
     }
 
     private static (Entry[] Entries, ushort[] Lengths) ParseBom(byte[] bom, int entryCount)
@@ -263,6 +307,8 @@ public static class PsarcArchive
 
         writer.Write(bytes);
     }
+
+    private readonly record struct Table(Entry[] Entries, ushort[] Lengths);
 
     private readonly record struct Entry(byte[] NameDigest, int ZIndex, long Length, long Offset);
 

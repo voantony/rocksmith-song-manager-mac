@@ -1,8 +1,8 @@
 namespace MacSongManager.Core.Songs;
 
 /// <summary>
-/// One custom song file. Fields come from the file name and the file bytes.
-/// The package is never opened.
+/// One custom song file. Artist and title prefer a user edit, then the
+/// package manifest, then the file name.
 /// </summary>
 public sealed record SongRecord
 {
@@ -16,6 +16,11 @@ public sealed record SongRecord
     public string? Title { get; init; }
     public string? Version { get; init; }
     public string? Author { get; init; }
+    public string? Album { get; init; }
+    public int? Year { get; init; }
+    public string? Arrangements { get; init; }
+    public string? Tuning { get; init; }
+    public string? DlcKey { get; init; }
     public string? ContentHash { get; init; }
     public ParseConfidence Confidence { get; init; } = ParseConfidence.Medium;
     public string TagSource { get; init; } = "filename";
