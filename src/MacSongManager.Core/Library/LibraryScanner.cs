@@ -1,5 +1,6 @@
 using MacSongManager.Core.Safety;
 using MacSongManager.Core.Songs;
+using MacSongManager.Core.Storage;
 
 namespace MacSongManager.Core.Library;
 
@@ -18,6 +19,13 @@ public sealed record ScanResult(
 /// </summary>
 public sealed class LibraryScanner
 {
+    private readonly TagStore? _tags;
+
+    public LibraryScanner(TagStore? tags = null)
+    {
+        _tags = tags;
+    }
+
     public async Task<ScanResult> ScanAsync(
         string libraryRoot,
         CancellationToken cancellationToken,
@@ -70,7 +78,7 @@ public sealed class LibraryScanner
                 continue;
             }
 
-            var record = await ReadFileAsync(root, file, kind, cancellationToken).ConfigureAwait(false);
+            var record = await ReadFileAsync(root, file, kind, _tags, cancellationToken).ConfigureAwait(false);
             records.Add(record);
         }
 
@@ -91,6 +99,7 @@ public sealed class LibraryScanner
         string root,
         string file,
         SongFileKind kind,
+        TagStore? tags,
         CancellationToken cancellationToken)
     {
         var info = new FileInfo(file);
@@ -106,6 +115,21 @@ public sealed class LibraryScanner
             error = ex.Message;
         }
 
+        var artist = parsed.Artist;
+        var title = parsed.Title;
+        var confidence = parsed.Confidence;
+        var source = confidence == ParseConfidence.High && !string.IsNullOrWhiteSpace(parsed.Artist) && OfficialSongNames.TryResolve(SongFileNames.Stem(file), out _, out _)
+            ? "builtin"
+            : "filename";
+        var saved = tags?.Find(hash);
+        if (saved is not null && !string.IsNullOrWhiteSpace(saved.Artist) && !string.IsNullOrWhiteSpace(saved.Title))
+        {
+            artist = saved.Artist;
+            title = saved.Title;
+            confidence = ParseConfidence.High;
+            source = saved.Source;
+        }
+
         return new SongRecord
         {
             FullPath = Path.GetFullPath(file),
@@ -114,11 +138,13 @@ public sealed class LibraryScanner
             SizeBytes = info.Exists ? info.Length : 0,
             FileKind = kind,
             ReadError = error,
-            Artist = parsed.Artist,
-            Title = parsed.Title,
+            Artist = artist,
+            Title = title,
             Version = parsed.Version,
             Author = parsed.Author,
-            ContentHash = hash
+            ContentHash = hash,
+            Confidence = confidence,
+            TagSource = source
         };
     }
 

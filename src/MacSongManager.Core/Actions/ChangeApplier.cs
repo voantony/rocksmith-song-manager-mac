@@ -1,5 +1,7 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using MacSongManager.Core.Conversion;
 using MacSongManager.Core.Safety;
 using MacSongManager.Core.Songs;
 
@@ -138,13 +140,16 @@ public sealed class ChangeApplier
                 var parent = Path.GetDirectoryName(change.DestinationPath);
                 if (!string.IsNullOrEmpty(parent))
                     Directory.CreateDirectory(parent);
-                File.Move(change.SourcePath, change.DestinationPath);
+                if (change.Kind == ChangeKind.Convert)
+                    PlatformPackageConverter.ConvertPcToMac(change.SourcePath, change.DestinationPath);
+                else
+                    File.Move(change.SourcePath, change.DestinationPath);
                 done.Add(change);
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or CryptographicException)
         {
-            var rollbackNote = Rollback(done);
+            var rollbackNote = Rollback(done, trashRoot);
             var message = $"Stopped before finishing the batch: {ex.Message}";
             if (rollbackNote.Length > 0)
                 message += " " + rollbackNote;
@@ -229,7 +234,7 @@ public sealed class ChangeApplier
 
         return kind switch
         {
-            ChangeKind.Enable or ChangeKind.Disable or ChangeKind.Organize =>
+            ChangeKind.Enable or ChangeKind.Disable or ChangeKind.Organize or ChangeKind.Rename or ChangeKind.Convert =>
                 InLibrary(source) && InLibrary(destination),
             ChangeKind.Trash => InLibrary(source) && InTrash(destination),
             ChangeKind.Undo => (InLibrary(source) || InTrash(source)) && (InLibrary(destination) || InTrash(destination)),
@@ -237,7 +242,7 @@ public sealed class ChangeApplier
         };
     }
 
-    private static string Rollback(List<PlannedChange> done)
+    private static string Rollback(List<PlannedChange> done, string trashRoot)
     {
         var failed = new List<string>();
         for (var i = done.Count - 1; i >= 0; i--)
@@ -245,6 +250,20 @@ public sealed class ChangeApplier
             var change = done[i];
             try
             {
+                if (change.Kind == ChangeKind.Convert)
+                {
+                    if (File.Exists(change.DestinationPath))
+                    {
+                        var parked = Path.Combine(trashRoot, "failed-convert", Path.GetFileName(change.DestinationPath));
+                        Directory.CreateDirectory(Path.GetDirectoryName(parked)!);
+                        if (File.Exists(parked))
+                            parked = Path.Combine(trashRoot, "failed-convert", Guid.NewGuid().ToString("N") + "_" + Path.GetFileName(change.DestinationPath));
+                        File.Move(change.DestinationPath, parked);
+                    }
+
+                    continue;
+                }
+
                 if (File.Exists(change.DestinationPath) && !File.Exists(change.SourcePath))
                 {
                     var parent = Path.GetDirectoryName(change.SourcePath);

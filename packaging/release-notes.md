@@ -8,4 +8,8 @@ The app is not notarized. After download, macOS may block the first open. Right-
 xattr -dr com.apple.quarantine "/Applications/Mac Song Manager.app"
 ```
 
-This build reads file names and file bytes only. It does not open song packages.
+Version 0.2.0 reads CamelCase and toolkit-style file names, stores edited artist and title tags beside the library, can ask MusicBrainz to fix spelling, and renames files to `Artist - Song Title_m.psarc`.
+
+Convert PC songs writes a new Mac file under `dlc/converted-from-pc/` and leaves the `_p.psarc` original in place. That conversion is adapted from glebb/rocksmithconvert (GPL-3.0-or-later) and pyrocksmith by 0x0L (MIT). See NOTICE.
+
+The app is GPL-3.0-or-later.

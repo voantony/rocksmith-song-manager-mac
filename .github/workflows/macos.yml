@@ -47,8 +47,9 @@ jobs:
         run: |
           set -eu
           shasum -a 256 artifacts/*/*.zip > artifacts/SHA256SUMS.txt
-          gh release create "$GITHUB_REF_NAME" \
-            --title "Mac Song Manager $GITHUB_REF_NAME" \
-            --notes-file packaging/release-notes.md \
-            artifacts/*/*.zip \
-            artifacts/SHA256SUMS.txt
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" \
+              --title "Mac Song Manager $GITHUB_REF_NAME" \
+              --notes-file packaging/release-notes.md
+          fi
+          gh release upload "$GITHUB_REF_NAME" artifacts/*/*.zip artifacts/SHA256SUMS.txt --clobber

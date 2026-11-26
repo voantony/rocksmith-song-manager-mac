@@ -1,0 +1,20 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MacSongManager.Views.EditTagsWindow"
+        Title="Edit tags"
+        Width="460"
+        Height="240"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource MsmPaper}">
+  <StackPanel Margin="20" Spacing="10">
+    <TextBlock Text="These names are stored beside the library. The song file is not modified." TextWrapping="Wrap"/>
+    <TextBlock Text="Artist"/>
+    <TextBox x:Name="ArtistBox"/>
+    <TextBlock Text="Title"/>
+    <TextBox x:Name="TitleBox"/>
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Cancel" Click="OnCancel"/>
+      <Button Classes="accent" Content="Save" Click="OnSave"/>
+    </StackPanel>
+  </StackPanel>
+</Window>

@@ -1,0 +1,17 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MacSongManager.Views.NamePromptWindow"
+        Title="Setlist"
+        Width="420"
+        Height="180"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource MsmPaper}">
+  <StackPanel Margin="20" Spacing="10">
+    <TextBlock Text="Name this setlist. It remembers the selected songs and does not move files." TextWrapping="Wrap"/>
+    <TextBox x:Name="NameBox" PlaceholderText="Practice"/>
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Cancel" Click="OnCancel"/>
+      <Button Classes="accent" Content="Save" Click="OnSave"/>
+    </StackPanel>
+  </StackPanel>
+</Window>

@@ -95,12 +95,101 @@ public static class ChangePlanner
         return new ChangePlan(ChangeKind.Trash, changes, skipped);
     }
 
-    public static ChangePlan PlanUndo(ChangeBatch batch)
+    public static ChangePlan PlanFriendlyRename(string libraryRoot, IEnumerable<SongRecord> songs)
+    {
+        var root = Path.GetFullPath(libraryRoot);
+        var changes = new List<PlannedChange>();
+        var skipped = new List<SkippedChange>();
+        var reserved = new HashSet<string>(PathComparer);
+        foreach (var song in songs)
+        {
+            if (!TryAcceptCustom(root, song, skipped, out var source))
+                continue;
+            if (song.Confidence == ParseConfidence.Low && !song.HasTagOverride)
+            {
+                skipped.Add(new SkippedChange(song.FullPath, "Low-confidence name. Edit the tags or run Fix tags first."));
+                continue;
+            }
+
+            var newName = FriendlyFileNames.Build(song.Artist, song.Title, song.FileName);
+            if (newName is null)
+            {
+                skipped.Add(new SkippedChange(song.FullPath, "Artist and title are both required."));
+                continue;
+            }
+
+            var directory = Path.GetDirectoryName(source) ?? root;
+            var destination = Path.GetFullPath(Path.Combine(directory, newName));
+            if (!PathGuard.IsStrictlyInside(root, destination))
+            {
+                skipped.Add(new SkippedChange(song.FullPath, "Rename would leave the library."));
+                continue;
+            }
+
+            if (!Reserve(destination, source, reserved, skipped, song.FullPath, "That file name already exists."))
+                continue;
+
+            changes.Add(new PlannedChange(ChangeKind.Rename, source, destination, "Rename to Artist - Title"));
+        }
+
+        return new ChangePlan(ChangeKind.Rename, changes, skipped);
+    }
+
+    public static ChangePlan PlanConvert(string libraryRoot, IEnumerable<SongRecord> songs)
+    {
+        var root = Path.GetFullPath(libraryRoot);
+        var changes = new List<PlannedChange>();
+        var skipped = new List<SkippedChange>();
+        var reserved = new HashSet<string>(PathComparer);
+        var macStems = MacStems(root);
+        foreach (var song in songs)
+        {
+            if (!TryAcceptCustom(root, song, skipped, out var source))
+                continue;
+            if (song.FileKind != SongFileKind.PcFormat)
+            {
+                skipped.Add(new SkippedChange(song.FullPath, "Not a PC file."));
+                continue;
+            }
+
+            var stem = SongFileNames.Stem(source);
+            if (macStems.Contains(stem))
+            {
+                skipped.Add(new SkippedChange(song.FullPath, "A Mac file with this name already exists."));
+                continue;
+            }
+
+            var destination = Path.GetFullPath(Path.Combine(root, "converted-from-pc", stem + "_m.psarc"));
+            if (!PathGuard.IsStrictlyInside(root, destination))
+            {
+                skipped.Add(new SkippedChange(song.FullPath, "Conversion would leave the library."));
+                continue;
+            }
+
+            if (!Reserve(destination, source, reserved, skipped, song.FullPath, "The converted file already exists."))
+                continue;
+
+            changes.Add(new PlannedChange(ChangeKind.Convert, source, destination, "Convert PC file to Mac"));
+        }
+
+        return new ChangePlan(ChangeKind.Convert, changes, skipped);
+    }
+
+    public static ChangePlan PlanUndo(ChangeBatch batch, string? trashRoot = null)
     {
         var changes = new List<PlannedChange>(batch.Changes.Count);
         for (var i = batch.Changes.Count - 1; i >= 0; i--)
         {
             var change = batch.Changes[i];
+            if (change.Kind == ChangeKind.Convert)
+            {
+                if (string.IsNullOrWhiteSpace(trashRoot))
+                    continue;
+                var destination = Path.Combine(trashRoot, "undo-convert", Path.GetFileName(change.DestinationPath));
+                changes.Add(new PlannedChange(ChangeKind.Trash, change.DestinationPath, destination, "Undo conversion"));
+                continue;
+            }
+
             changes.Add(new PlannedChange(
                 ChangeKind.Undo,
                 change.DestinationPath,
@@ -109,6 +198,20 @@ public static class ChangePlanner
         }
 
         return new ChangePlan(ChangeKind.Undo, changes, []);
+    }
+
+    private static HashSet<string> MacStems(string root)
+    {
+        var stems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!Directory.Exists(root))
+            return stems;
+        foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+        {
+            if (SongFileNames.IsMacPackage(SongFileNames.Classify(file)))
+                stems.Add(SongFileNames.Stem(file));
+        }
+
+        return stems;
     }
 
     private static ChangePlan PlanMacRename(string libraryRoot, IEnumerable<SongRecord> songs, bool enable)

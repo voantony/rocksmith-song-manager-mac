@@ -6,6 +6,8 @@ public enum ChangeKind
     Disable,
     Organize,
     Trash,
+    Rename,
+    Convert,
     Undo
 }
 

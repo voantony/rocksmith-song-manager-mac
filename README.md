@@ -2,9 +2,9 @@
 
 Mac Song Manager is a small Mac app for Rocksmith 2014 custom songs. It lists the files in your `dlc` folder, renames them to enable or disable them, groups them into artist folders, and points out duplicates.
 
-It is unofficial and is not affiliated with Ubisoft or CustomsForge.
+It is unofficial and is not affiliated with Ubisoft or CustomsForge. The program is licensed under GPL-3.0-or-later.
 
-The app reads file names and file bytes. It does not open song packages, and it does not include publisher encryption keys or PSARC/SNG decryption code.
+Library tags come from file names. PC-to-Mac conversion opens a package only to swap the platform layout, using code adapted from glebb's rocksmithconvert. See NOTICE.
 
 ![Library](docs/images/library.png)
 
@@ -14,8 +14,10 @@ The app reads file names and file bytes. It does not open song packages, and it 
 
 - Starts in `~/Library/Application Support/Steam/steamapps/common/Rocksmith2014/dlc`. You can pick another folder. Subfolders are included.
 - Lists `*_m.psarc` as enabled and `*_m.disabled.psarc` as disabled.
-- Flags `*_p.psarc` and `*_p.disabled.psarc`. Those are PC files. The Mac game will not load them. This version does not convert them.
-- Parses artist, title, version, and author from the file name.
+- Flags `*_p.psarc` and `*_p.disabled.psarc`, and can convert them into `dlc/converted-from-pc/` as `*_m.psarc`. The original PC file stays in place. A song that already has a Mac file is skipped.
+- Parses artist, title, version, and author from CamelCase hyphen names (`Creed-OneLastBreath_m.psarc`), `Artist - Title`, and `Artist_Title_v1_DD` names. Low-confidence names are marked for review.
+- Lets you edit artist and title. Edits are stored in the app's tag file, not inside the song file. Fix tags can ask MusicBrainz, one request per second, and you accept each suggestion.
+- Renames files to `Artist - Song Title_m.psarc`, keeping `_m` or `_m.disabled`.
 - Searches, filters, and sorts the list.
 - Enables or disables Mac files by renaming `_m.psarc` and `_m.disabled.psarc`, including a selection of files.
 - Moves files into an artist subfolder, after a preview.
@@ -33,9 +35,17 @@ After the platform suffix, these shapes are recognized:
 | `Metric - Gold Guns Girls_v4_m.psarc` | Metric | Gold Guns Girls | 4 | |
 | `The_Rolling_Stones__Paint_It_Black_v2_m.psarc` | The Rolling Stones | Paint It Black | 2 | |
 
-A single underscore separates the artist and the title. Use ` - ` or a double underscore when the artist name itself has spaces. Remaining underscores become spaces. Duplicate matching ignores punctuation, accents, and a leading "The".
+A single hyphen splits `Creed-OneLastBreath` into artist and title, then splits CamelCase, digits, and small words such as of, the, and van. `Artist_Title_v1_DD_m.psarc` and `Artist - Title` are read too. `1979_m.psarc` and `babaoriley_m.psarc` use a small built-in list of official short names. Other names without a separator are marked low confidence until you edit them or accept a MusicBrainz suggestion.
 
-Album, year, arrangements, and the in-package key are not shown. Reading them is [pending legal review](docs/roadmap.md).
+Duplicate matching ignores punctuation, accents, and a leading "The".
+
+## Credits
+
+Original application code, copyright 2026 Antony Vo, GPL-3.0-or-later.
+
+PC-to-Mac conversion is adapted from [rocksmithconvert](https://github.com/glebb/rocksmithconvert) by glebb, GPL-3.0-or-later. The archive and chart wrapping are ported from [pyrocksmith](https://github.com/0x0L/rocksmith) by 0x0L, MIT. Both were rewritten in C# in 2026. The port does not use rocksmithconvert's short rename or app-id replacement, and it also updates JSON, HSAN, and XML path text. Details and the MIT notice are in `NOTICE`.
+
+The window UI uses [Avalonia](https://github.com/AvaloniaUI/Avalonia), MIT.
 
 ## Install
 
@@ -78,12 +88,11 @@ PC files can be filed into an artist folder or moved to trash. They cannot be en
 - `songs.psarc`, `gears.psarc`, and file names containing `compatibility` are refused even if a preview is forced.
 - Point the library at the `dlc` folder, not at the game itself.
 
-## What v1 does not do
+## What this version does not do
 
-- It does not open `.psarc` contents, show arrangements, or read an in-package key.
-- It does not sync with a website.
-- It does not import FLAC or MP3. The **Import** path is a seam for later work. See [docs/roadmap.md](docs/roadmap.md).
-- It does not convert PC files into Mac files.
+- The song list does not show arrangements or an in-package key. Artist and title come from the file name, your edits, or MusicBrainz.
+- It does not sync a song catalog with a website. Fix tags is a MusicBrainz search you start yourself.
+- It does not import FLAC or MP3. That seam is still unused. See [docs/roadmap.md](docs/roadmap.md).
 
 ## Build from source
 
@@ -101,15 +110,11 @@ cd rocksmith-song-manager-mac
 
 ## Roadmap
 
-Reading metadata inside a package is pending legal review. A future audio-import pipeline (separation, transcription, tempo, then packaging) is sketched in [docs/roadmap.md](docs/roadmap.md). v1 does not include that work, and packaging must not add publisher encryption keys.
+Audio import is still only a seam. PC-to-Mac conversion of files already in the library is included and described above.
 
 ## Credits
 
-Original application code, copyright 2026 Antony Vo.
-
-The window UI uses [Avalonia](https://github.com/AvaloniaUI/Avalonia), MIT. See `THIRD_PARTY_NOTICES.md`.
-
-v1 does not reference Rocksmith2014.NET, pyrocksmith, or other PSARC decryption code.
+See the credits section above. `THIRD_PARTY_NOTICES.md` lists the UI toolkit.
 
 ## Disclaimer
 

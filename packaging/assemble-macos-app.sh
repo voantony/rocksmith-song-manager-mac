@@ -29,6 +29,8 @@ if [[ -f "$ROOT/packaging/AppIcon.icns" ]]; then
   cp "$ROOT/packaging/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 fi
 cp "$ROOT/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
+cp "$ROOT/NOTICE" "$APP/Contents/Resources/NOTICE"
+cp "$ROOT/LICENSE" "$APP/Contents/Resources/LICENSE"
 
 if command -v codesign >/dev/null 2>&1; then
   codesign --force --deep --sign - "$APP" || true

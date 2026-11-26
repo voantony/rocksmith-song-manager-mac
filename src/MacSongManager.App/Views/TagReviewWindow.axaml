@@ -1,0 +1,28 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MacSongManager.ViewModels"
+        x:Class="MacSongManager.Views.TagReviewWindow"
+        Title="Fix tags"
+        Width="720"
+        Height="480"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource MsmPaper}">
+  <Grid Margin="16" RowDefinitions="Auto,*,Auto" RowSpacing="10">
+    <TextBlock Grid.Row="0" TextWrapping="Wrap"
+               Text="MusicBrainz suggestions are not written until you apply the checked rows. The song files stay unchanged."/>
+    <ListBox x:Name="Rows" Grid.Row="1" Background="White">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="vm:ReviewRow">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <CheckBox IsChecked="{Binding Accept}"/>
+            <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" MaxWidth="620"/>
+          </StackPanel>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Cancel" Click="OnCancel"/>
+      <Button Classes="accent" Content="Apply checked" Click="OnSave"/>
+    </StackPanel>
+  </Grid>
+</Window>

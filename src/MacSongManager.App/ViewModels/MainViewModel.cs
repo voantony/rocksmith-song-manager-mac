@@ -3,8 +3,10 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using MacSongManager.Core.Actions;
 using MacSongManager.Core.Library;
+using MacSongManager.Core.Safety;
 using MacSongManager.Core.Songs;
 using MacSongManager.Core.Storage;
+using MacSongManager.Core.Tags;
 using MacSongManager.Import;
 
 namespace MacSongManager.ViewModels;
@@ -15,7 +17,8 @@ public enum LibraryFilter
     Enabled,
     Disabled,
     PcFormat,
-    Duplicates
+    Duplicates,
+    LowConfidence
 }
 
 public sealed class FilterChoice
@@ -58,13 +61,20 @@ public sealed class SongRow : INotifyPropertyChanged
         }
     }
 
-    public string Status => Song.FileKind switch
+    public string Status
     {
-        SongFileKind.MacEnabled => "Enabled",
-        SongFileKind.MacDisabled => "Disabled",
-        SongFileKind.PcFormat => "PC format",
-        _ => "Other"
-    };
+        get
+        {
+            var label = Song.FileKind switch
+            {
+                SongFileKind.MacEnabled => "Enabled",
+                SongFileKind.MacDisabled => "Disabled",
+                SongFileKind.PcFormat => "PC format",
+                _ => "Other"
+            };
+            return Song.Confidence == ParseConfidence.Low && !Song.HasTagOverride ? label + " · review" : label;
+        }
+    }
 
     public string Artist => Song.Artist ?? "";
     public string Title => Song.Title ?? "";
@@ -84,6 +94,8 @@ public sealed class SongRow : INotifyPropertyChanged
             _ => "Same song"
         }));
 
+    public string Confidence => Song.Confidence.ToString();
+
     public static string FormatSize(long bytes)
     {
         if (bytes < 1024)
@@ -91,6 +103,47 @@ public sealed class SongRow : INotifyPropertyChanged
         if (bytes < 1024 * 1024)
             return $"{bytes / 1024.0:0.#} KB";
         return $"{bytes / 1024d / 1024d:0.#} MB";
+    }
+}
+
+public sealed record TagFixProposal(SongRecord Song, TagSuggestion? Suggestion, string? Error);
+
+public sealed class ReviewRow : System.ComponentModel.INotifyPropertyChanged
+{
+    private bool _accept;
+
+    public ReviewRow(TagFixProposal proposal)
+    {
+        Proposal = proposal;
+        _accept = proposal.Suggestion is not null;
+    }
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+    public TagFixProposal Proposal { get; }
+
+    public bool Accept
+    {
+        get => _accept;
+        set
+        {
+            if (_accept == value)
+                return;
+            _accept = value;
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(Accept)));
+        }
+    }
+
+    public string Summary
+    {
+        get
+        {
+            var current = $"{Proposal.Song.Artist ?? "—"} — {Proposal.Song.Title ?? Proposal.Song.FileName}";
+            if (Proposal.Suggestion is null)
+                return current + "  ·  " + (Proposal.Error ?? "No MusicBrainz match.");
+            return current + "  →  " + Proposal.Suggestion.Artist + " — " + Proposal.Suggestion.Title
+                + $"  ({Proposal.Suggestion.Score})";
+        }
     }
 }
 
@@ -103,6 +156,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly ChangeApplier _applier;
     private readonly IChangeLog _log;
     private readonly ISongChartImporter _importer;
+    private readonly TagStore _tags;
+    private readonly ITagLookup _lookup;
     private readonly List<SongRow> _rows = [];
     private string _libraryPath;
     private string _searchText = "";
@@ -112,6 +167,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private SongRow? _detailsRow;
     private string _sortKey = "Artist";
     private bool _sortDescending;
+    private HashSet<string>? _setlistHashes;
 
     public MainViewModel(
         string settingsPath,
@@ -120,7 +176,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         LibraryScanner scanner,
         ChangeApplier applier,
         IChangeLog log,
-        ISongChartImporter importer)
+        ISongChartImporter importer,
+        TagStore tags,
+        ITagLookup lookup)
     {
         _settingsPath = settingsPath;
         _trashRoot = trashRoot;
@@ -129,6 +187,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _applier = applier;
         _log = log;
         _importer = importer;
+        _tags = tags;
+        _lookup = lookup;
         _libraryPath = string.IsNullOrWhiteSpace(settings.LibraryPath)
             ? AppPaths.DefaultDlcFolder()
             : settings.LibraryPath;
@@ -138,7 +198,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
             new FilterChoice(LibraryFilter.Enabled, "Enabled"),
             new FilterChoice(LibraryFilter.Disabled, "Disabled"),
             new FilterChoice(LibraryFilter.PcFormat, "PC format"),
-            new FilterChoice(LibraryFilter.Duplicates, "Duplicates")
+            new FilterChoice(LibraryFilter.Duplicates, "Duplicates"),
+            new FilterChoice(LibraryFilter.LowConfidence, "Needs review")
         ];
         _selectedFilter = Filters[0];
     }
@@ -147,7 +208,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string AppName => AppPaths.DisplayName;
     public string Tagline => "For Rocksmith 2014 custom songs";
-    public string VersionLabel => "Version 0.1.0";
+    public string VersionLabel => "Version 0.2.0";
     public string Disclaimer => "Unofficial. Not affiliated with Ubisoft.";
     public string ImporterNote => _importer.UnavailableReason;
     public bool CanImportAudio => _importer.IsAvailable;
@@ -234,6 +295,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public ChangePlan PlanFriendlyRename() => ChangePlanner.PlanFriendlyRename(LibraryPath, SelectedSongs());
+    public ChangePlan PlanConvert() => ChangePlanner.PlanConvert(LibraryPath, SelectedSongs());
     public ChangePlan PlanEnable() => ChangePlanner.PlanEnable(LibraryPath, SelectedSongs());
     public ChangePlan PlanDisable() => ChangePlanner.PlanDisable(LibraryPath, SelectedSongs());
     public ChangePlan PlanOrganize() => ChangePlanner.PlanOrganize(LibraryPath, SelectedSongs());
@@ -254,11 +317,119 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         message = $"Undo {latest.Changes.Count} {latest.Kind} change(s) from {latest.Timestamp.ToLocalTime():g}.";
-        return ChangePlanner.PlanUndo(latest);
+        return ChangePlanner.PlanUndo(latest, _trashRoot);
     }
 
     public ApplyResult Apply(ChangePlan plan, bool dryRun) =>
         _applier.Apply(LibraryPath, _trashRoot, plan, dryRun);
+
+    public void SaveTag(SongRecord song, string artist, string title)
+    {
+        if (string.IsNullOrWhiteSpace(song.ContentHash))
+            return;
+        _tags.Save(song.ContentHash, artist.Trim(), title.Trim(), "user");
+    }
+
+    public async Task<IReadOnlyList<TagFixProposal>> ProposeTagFixesAsync(IEnumerable<SongRecord> songs)
+    {
+        var proposals = new List<TagFixProposal>();
+        foreach (var song in songs)
+        {
+            TagSuggestion? suggestion = null;
+            string? error = null;
+            try
+            {
+                suggestion = await _lookup.LookupAsync(song.Artist, song.Title, CancellationToken.None);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
+            {
+                error = ex.Message;
+            }
+
+            proposals.Add(new TagFixProposal(song, suggestion, error));
+        }
+
+        return proposals;
+    }
+
+    public void ApplyTagFixes(IEnumerable<TagFixProposal> accepted)
+    {
+        foreach (var proposal in accepted)
+        {
+            if (proposal.Suggestion is null || string.IsNullOrWhiteSpace(proposal.Song.ContentHash))
+                continue;
+            _tags.Save(proposal.Song.ContentHash, proposal.Suggestion.Artist, proposal.Suggestion.Title, "musicbrainz");
+        }
+    }
+
+    public void SaveSelectionAsSetlist(string name)
+    {
+        var hashes = SelectedSongs().Select(song => song.ContentHash).Where(hash => !string.IsNullOrWhiteSpace(hash))!;
+        _tags.SaveSetlist(name, hashes!);
+        ShowSetlist(name);
+    }
+
+    public void ShowSetlist(string name)
+    {
+        _setlistHashes = new HashSet<string>(_tags.Setlist(name), StringComparer.OrdinalIgnoreCase);
+        StatusMessage = $"Setlist \"{name}\" has {_setlistHashes.Count} song(s).";
+        RefreshVisible();
+    }
+
+    public void ClearSetlist()
+    {
+        _setlistHashes = null;
+        RefreshVisible();
+    }
+
+    public void WriteCatalogBackup()
+    {
+        CatalogBackup.Write(AppPaths.CatalogBackupPath(), new CatalogSnapshot
+        {
+            CreatedAt = DateTimeOffset.UtcNow,
+            LibraryPath = LibraryPath,
+            Files = _rows.Select(row => new CatalogEntry
+            {
+                RelativePath = row.Song.RelativePath,
+                ContentHash = row.Song.ContentHash,
+                FileName = row.Song.FileName
+            }).ToList()
+        });
+        StatusMessage = "Saved a backup of the file list.";
+    }
+
+    public ChangePlan? PlanCatalogRestore()
+    {
+        var snapshot = CatalogBackup.Read(AppPaths.CatalogBackupPath());
+        if (snapshot is null)
+        {
+            StatusMessage = "No file-list backup was found.";
+            return null;
+        }
+
+        var root = Path.GetFullPath(LibraryPath);
+        var byHash = _rows
+            .Where(row => !string.IsNullOrWhiteSpace(row.Song.ContentHash))
+            .GroupBy(row => row.Song.ContentHash!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First().Song, StringComparer.OrdinalIgnoreCase);
+        var changes = new List<PlannedChange>();
+        var skipped = new List<SkippedChange>();
+        foreach (var entry in snapshot.Files)
+        {
+            if (string.IsNullOrWhiteSpace(entry.ContentHash) || !byHash.TryGetValue(entry.ContentHash, out var song))
+            {
+                skipped.Add(new SkippedChange(entry.RelativePath, "That file is not in the library now."));
+                continue;
+            }
+
+            var destination = Path.GetFullPath(Path.Combine(root, entry.RelativePath));
+            if (PathGuard.SamePath(song.FullPath, destination))
+                continue;
+            changes.Add(new PlannedChange(ChangeKind.Rename, song.FullPath, destination, "Restore file list"));
+        }
+
+        return new ChangePlan(ChangeKind.Rename, changes, skipped);
+    }
 
     public void SetVisibleSelection(bool selected)
     {
@@ -319,6 +490,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private bool Matches(SongRow row)
     {
+        if (_setlistHashes is not null && (row.Song.ContentHash is null || !_setlistHashes.Contains(row.Song.ContentHash)))
+            return false;
         if (!MatchesFilter(row))
             return false;
         if (string.IsNullOrWhiteSpace(SearchText))
@@ -340,6 +513,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         LibraryFilter.Disabled => row.Song.FileKind == SongFileKind.MacDisabled,
         LibraryFilter.PcFormat => row.Song.FileKind == SongFileKind.PcFormat,
         LibraryFilter.Duplicates => row.Song.IsDuplicate,
+        LibraryFilter.LowConfidence => row.Song.Confidence == ParseConfidence.Low && !row.Song.HasTagOverride,
         _ => true
     };
 
@@ -384,7 +558,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             $"{Display(song.Artist)} — {Display(song.Title)}",
             $"Version {Display(song.Version)} · {Display(song.Author)}",
-            $"{row.Status} · {row.Size}" + (row.Hash.Length > 0 ? $" · {song.ContentHash}" : ""),
+            $"{row.Status} · {song.Confidence} confidence · {row.Size}" + (song.ContentHash is { Length: > 0 } hash ? $" · {hash}" : ""),
             song.RelativePath,
             song.FullPath
         };

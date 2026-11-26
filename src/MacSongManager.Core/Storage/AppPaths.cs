@@ -77,4 +77,10 @@ public static class AppPaths
 
     public static string TrashFolder(string? home = null) =>
         Path.Combine(SupportFolder(home), "Trash");
+
+    public static string TagStorePath(string? home = null) =>
+        Path.Combine(SupportFolder(home), "tags.json");
+
+    public static string CatalogBackupPath(string? home = null) =>
+        Path.Combine(SupportFolder(home), "catalog-backup.json");
 }

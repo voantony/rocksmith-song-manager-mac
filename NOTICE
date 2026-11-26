@@ -1,0 +1,59 @@
+Mac Song Manager
+Copyright (C) 2026 Antony Vo
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+PC-to-Mac conversion is adapted from:
+
+  rocksmithconvert
+  Copyright (C) glebb
+  https://github.com/glebb/rocksmithconvert
+  License: GPL-3.0-or-later
+
+  The archive read/write and chart wrapping are ported from pyrocksmith,
+  which rocksmithconvert uses:
+
+  pyrocksmith
+  Copyright (c) 2016 0x0L
+  https://github.com/0x0L/rocksmith
+  License: MIT
+
+Modifications in 2026 by Antony Vo: both parts were ported from Python to C#
+for Mac Song Manager. The port converts PC packages to Mac only. It does not
+use rocksmithconvert's short-name rewrite or its optional app-id replacement.
+Text path updates are also applied to JSON, HSAN, and XML entries, not only
+to aggregategraph.nt. The full GPL-3.0 license is in the file LICENSE. The
+MIT terms for the pyrocksmith portion are below.
+
+MIT License
+
+Copyright (c) 2016 0x0L
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

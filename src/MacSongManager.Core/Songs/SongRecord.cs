@@ -17,6 +17,9 @@ public sealed record SongRecord
     public string? Version { get; init; }
     public string? Author { get; init; }
     public string? ContentHash { get; init; }
+    public ParseConfidence Confidence { get; init; } = ParseConfidence.Medium;
+    public string TagSource { get; init; } = "filename";
+    public bool HasTagOverride => TagSource is "user" or "musicbrainz";
     public bool IsDuplicate { get; init; }
     public IReadOnlyList<DuplicateReason> DuplicateReasons { get; init; } = [];
 
