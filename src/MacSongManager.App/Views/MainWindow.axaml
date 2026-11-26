@@ -1,0 +1,105 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MacSongManager.ViewModels"
+        x:Class="MacSongManager.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="Mac Song Manager"
+        Width="1180"
+        Height="760"
+        MinWidth="920"
+        MinHeight="560"
+        Icon="avares://MacSongManager/Assets/app-icon.png"
+        Background="{StaticResource MsmPaper}">
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource MsmLine}" BorderThickness="0,0,0,1" Padding="16,12">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+        <TextBlock Text="Library" VerticalAlignment="Center" Foreground="{StaticResource MsmMuted}" Margin="0,0,4,0"/>
+        <TextBox x:Name="PathBox" Grid.Column="1" Text="{Binding LibraryPath}" PlaceholderText="dlc folder"/>
+        <Button Grid.Column="2" Content="Browse…" Click="OnBrowse"/>
+        <Button Grid.Column="3" Classes="accent" Content="Scan" Click="OnScan" IsEnabled="{Binding CanAct}"/>
+      </Grid>
+    </Border>
+
+    <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="{StaticResource MsmLine}" BorderThickness="0,1,0,0" Padding="16,8">
+      <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource MsmMuted}" TextWrapping="Wrap"/>
+    </Border>
+
+    <Border Grid.IsSharedSizeScope="False" Width="248" DockPanel.Dock="Left" Background="{StaticResource MsmSidebar}" Padding="16,18">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Bottom" Spacing="8">
+          <TextBlock Text="{Binding ImporterNote}" TextWrapping="Wrap" Foreground="#B7C6C4" FontSize="12"/>
+          <TextBlock Text="{Binding Disclaimer}" TextWrapping="Wrap" Foreground="#8AA09C" FontSize="12"/>
+          <TextBlock Text="{Binding VersionLabel}" Foreground="#8AA09C" FontSize="12"/>
+        </StackPanel>
+        <StackPanel Spacing="14">
+          <StackPanel Spacing="2">
+            <TextBlock Text="{Binding AppName}" FontSize="22" FontWeight="SemiBold" Foreground="White"/>
+            <TextBlock Text="{Binding Tagline}" Foreground="#D5E4E1" TextWrapping="Wrap"/>
+          </StackPanel>
+          <TextBox Text="{Binding SearchText}" PlaceholderText="Search name, author, file"/>
+          <ListBox x:Name="FilterList"
+                   ItemsSource="{Binding Filters}"
+                   SelectedItem="{Binding SelectedFilter}"
+                   Background="Transparent"
+                   BorderThickness="0"
+                   Foreground="White">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:FilterChoice">
+                <TextBlock Text="{Binding Label}" Margin="2,4"/>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          <TextBlock Text="{Binding SummaryLine}" Foreground="#D5E4E1" TextWrapping="Wrap" FontSize="12"/>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
+      <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
+        <Button Content="Enable" Click="OnEnable" IsEnabled="{Binding CanAct}"/>
+        <Button Content="Disable" Click="OnDisable" IsEnabled="{Binding CanAct}"/>
+        <Button Content="Organize by artist" Click="OnOrganize" IsEnabled="{Binding CanAct}"/>
+        <Button Content="Move to trash" Click="OnTrash" IsEnabled="{Binding CanAct}"/>
+        <Button Content="Undo" Click="OnUndo" IsEnabled="{Binding CanAct}"/>
+        <Button Content="Select shown" Click="OnSelectShown"/>
+        <Button Content="Clear" Click="OnClearSelection"/>
+      </StackPanel>
+      <TextBlock Grid.Row="1" Foreground="{StaticResource MsmMuted}" TextWrapping="Wrap"
+                 Text="Every change is previewed first. Enable and disable rename _m.psarc files. Files ending in _p.psarc are flagged because the Mac game will not load them."/>
+      <Border Grid.Row="3" Padding="12" Background="White" CornerRadius="10" MinHeight="92">
+        <TextBlock Text="{Binding DetailText}" TextWrapping="Wrap" Foreground="{StaticResource MsmInk}"/>
+      </Border>
+      <Border Grid.Row="2" Background="White" CornerRadius="10" Padding="4">
+        <Grid RowDefinitions="Auto,*">
+          <Grid Grid.Row="0" ColumnDefinitions="36,88,130,170,60,90,*,72,130" Margin="8,4">
+            <Button Grid.Column="1" Content="Status" Classes="quiet" Click="OnSort" Tag="Status"/>
+            <Button Grid.Column="2" Content="Artist" Classes="quiet" Click="OnSort" Tag="Artist"/>
+            <Button Grid.Column="3" Content="Title" Classes="quiet" Click="OnSort" Tag="Title"/>
+            <Button Grid.Column="4" Content="Version" Classes="quiet" Click="OnSort" Tag="Version"/>
+            <Button Grid.Column="5" Content="Author" Classes="quiet" Click="OnSort" Tag="Author"/>
+            <Button Grid.Column="6" Content="File" Classes="quiet" Click="OnSort" Tag="File"/>
+            <Button Grid.Column="7" Content="Size" Classes="quiet" Click="OnSort" Tag="Size"/>
+            <Button Grid.Column="8" Content="Duplicate" Classes="quiet" Click="OnSort" Tag="Duplicate"/>
+          </Grid>
+          <ListBox Grid.Row="1" ItemsSource="{Binding VisibleRows}" SelectedItem="{Binding SelectedRow}" Background="Transparent" BorderThickness="0">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:SongRow">
+                <Grid ColumnDefinitions="36,88,130,170,60,90,*,72,130">
+                  <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" HorizontalAlignment="Center"/>
+                  <TextBlock Grid.Column="1" Text="{Binding Status}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                  <TextBlock Grid.Column="2" Text="{Binding Artist}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                  <TextBlock Grid.Column="3" Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                  <TextBlock Grid.Column="4" Text="{Binding Version}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                  <TextBlock Grid.Column="5" Text="{Binding Author}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                  <TextBlock Grid.Column="6" Text="{Binding File}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                  <TextBlock Grid.Column="7" Text="{Binding Size}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                  <TextBlock Grid.Column="8" Text="{Binding Duplicate}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+    </Grid>
+  </DockPanel>
+</Window>

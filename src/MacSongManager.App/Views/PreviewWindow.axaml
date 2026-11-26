@@ -1,0 +1,36 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MacSongManager.ViewModels"
+        x:Class="MacSongManager.Views.PreviewWindow"
+        x:DataType="vm:PreviewViewModel"
+        Title="Preview changes"
+        Width="760"
+        Height="480"
+        MinWidth="560"
+        MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource MsmPaper}">
+  <Grid Margin="20" RowDefinitions="Auto,*,Auto" RowSpacing="12">
+    <StackPanel Grid.Row="0" Spacing="6">
+      <TextBlock Text="{Binding Heading}" Classes="h1" Foreground="{StaticResource MsmInk}"/>
+      <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" Foreground="{StaticResource MsmMuted}"/>
+      <TextBlock Text="{Binding Note}" TextWrapping="Wrap" Foreground="{StaticResource MsmMuted}"/>
+    </StackPanel>
+    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Cancel" Click="OnCancel"/>
+      <Button Classes="accent" Content="Apply" Click="OnApply" IsEnabled="{Binding CanApply}"/>
+    </StackPanel>
+    <ListBox Grid.Row="1" ItemsSource="{Binding Rows}" Background="White" BorderBrush="{StaticResource MsmLine}" BorderThickness="1">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="vm:PreviewRow">
+          <StackPanel Spacing="2" MaxWidth="680">
+            <TextBlock FontWeight="SemiBold" Text="{Binding Action}"/>
+            <TextBlock Text="{Binding From}" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding To}" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding Note}" Foreground="{StaticResource MsmMuted}" TextWrapping="Wrap"/>
+          </StackPanel>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+  </Grid>
+</Window>

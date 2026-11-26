@@ -1,2 +1,120 @@
-# rocksmith-mac-songs
-Native Mac manager for Rocksmith 2014 custom songs (list, enable/disable, organize, find duplicates)
+# Mac Song Manager
+
+Mac Song Manager is a small Mac app for Rocksmith 2014 custom songs. It lists the files in your `dlc` folder, renames them to enable or disable them, groups them into artist folders, and points out duplicates.
+
+It is unofficial and is not affiliated with Ubisoft or CustomsForge.
+
+The app reads file names and file bytes. It does not open song packages, and it does not include publisher encryption keys or PSARC/SNG decryption code.
+
+![Library](docs/images/library.png)
+
+![Preview](docs/images/preview.png)
+
+## What it does
+
+- Starts in `~/Library/Application Support/Steam/steamapps/common/Rocksmith2014/dlc`. You can pick another folder. Subfolders are included.
+- Lists `*_m.psarc` as enabled and `*_m.disabled.psarc` as disabled.
+- Flags `*_p.psarc` and `*_p.disabled.psarc`. Those are PC files. The Mac game will not load them. This version does not convert them.
+- Parses artist, title, version, and author from the file name.
+- Searches, filters, and sorts the list.
+- Enables or disables Mac files by renaming `_m.psarc` and `_m.disabled.psarc`, including a selection of files.
+- Moves files into an artist subfolder, after a preview.
+- Finds duplicates with the same normalized artist and title, and files with the same SHA-256 hash.
+- Leaves official game files alone. `songs.psarc`, `gears.psarc`, and compatibility packs are not listed and cannot be renamed.
+
+## File names
+
+After the platform suffix, these shapes are recognized:
+
+| File name | Artist | Title | Version | Author |
+| --- | --- | --- | --- | --- |
+| `Artist_Title_v1_m.psarc` | Artist | Title | 1 | |
+| `Artist_Title_v1_by_Ada_Lovelace_m.psarc` | Artist | Title | 1 | Ada Lovelace |
+| `Metric - Gold Guns Girls_v4_m.psarc` | Metric | Gold Guns Girls | 4 | |
+| `The_Rolling_Stones__Paint_It_Black_v2_m.psarc` | The Rolling Stones | Paint It Black | 2 | |
+
+A single underscore separates the artist and the title. Use ` - ` or a double underscore when the artist name itself has spaces. Remaining underscores become spaces. Duplicate matching ignores punctuation, accents, and a leading "The".
+
+Album, year, arrangements, and the in-package key are not shown. Reading them is [pending legal review](docs/roadmap.md).
+
+## Install
+
+Download `MacSongManager-0.1.0-osx-arm64.zip` on Apple silicon, or the `osx-x64` zip on Intel. Unzip it and move `Mac Song Manager.app` to Applications.
+
+The build is unsigned and not notarized. macOS may block the first open. Right-click the app, choose **Open**, then confirm. Or, in Terminal:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Mac Song Manager.app"
+```
+
+The zip is large because the .NET runtime is inside the app. You do not install a separate runtime.
+
+## Usage
+
+1. Open Mac Song Manager. It scans the Steam `dlc` folder when that folder exists.
+2. Use **Browse…** if your songs live somewhere else, then **Scan**.
+3. Filter the list, or search by name, author, file, or hash.
+4. Tick the songs you want to change. **Select shown** ticks the rows that match the current search.
+5. Choose Enable, Disable, Organize by artist, or Move to trash.
+6. Read the preview. **Apply** renames or moves the files and writes an undo entry. **Cancel** writes nothing.
+7. **Undo** reverses the latest batch, again after a preview.
+
+Disabled files stay in the folder. The game skips names that end in `_m.disabled.psarc`. Enable renames them back.
+
+Organize uses the artist parsed from the file name. A file already in that folder is left there. `AC/DC` becomes a folder named `AC DC`.
+
+Move to trash places the file in `~/Library/Application Support/Mac Song Manager/Trash` on a Mac. Undo moves it back. The app has no delete command.
+
+PC files can be filed into an artist folder or moved to trash. They cannot be enabled, because renaming `_p` to `_m` would not make them load.
+
+## Safety
+
+- Song files are renamed or moved. They are not deleted.
+- Each applied batch is appended to `change-log.jsonl` next to the trash folder. Undo replays that batch in reverse.
+- A failed batch moves completed files back before it returns.
+- The preview is the dry run. Nothing is written until you choose Apply.
+- Writes stay inside the chosen library folder, except a move into the app trash folder.
+- Symlinks that point outside the library are skipped.
+- `songs.psarc`, `gears.psarc`, and file names containing `compatibility` are refused even if a preview is forced.
+- Point the library at the `dlc` folder, not at the game itself.
+
+## What v1 does not do
+
+- It does not open `.psarc` contents, show arrangements, or read an in-package key.
+- It does not sync with a website.
+- It does not import FLAC or MP3. The **Import** path is a seam for later work. See [docs/roadmap.md](docs/roadmap.md).
+- It does not convert PC files into Mac files.
+
+## Build from source
+
+Requires the .NET 10 SDK.
+
+```bash
+git clone https://github.com/voantony/rocksmith-song-manager-mac.git
+cd rocksmith-song-manager-mac
+./eng/test.sh
+./packaging/assemble-macos-app.sh osx-arm64
+./packaging/assemble-macos-app.sh osx-x64   # optional Intel build
+```
+
+`./eng/test.sh` runs the unit tests and fails if source files contain publisher decryption constants. GitHub Actions runs that script on macOS, builds both app bundles, and uploads the zips. A `v*` tag also publishes a GitHub Release.
+
+## Roadmap
+
+Reading metadata inside a package is pending legal review. A future audio-import pipeline (separation, transcription, tempo, then packaging) is sketched in [docs/roadmap.md](docs/roadmap.md). v1 does not include that work, and packaging must not add publisher encryption keys.
+
+## Credits
+
+Original application code, copyright 2026 Antony Vo.
+
+The window UI uses [Avalonia](https://github.com/AvaloniaUI/Avalonia), MIT. See `THIRD_PARTY_NOTICES.md`.
+
+v1 does not reference Rocksmith2014.NET, pyrocksmith, or other PSARC decryption code.
+
+## Disclaimer
+
+Mac Song Manager is an unofficial tool for Rocksmith 2014 custom songs. It is not affiliated with, endorsed by, or supported by Ubisoft or CustomsForge. Rocksmith is a trademark of its owner. You are responsible for the song files you store in the `dlc` folder.
+
+## License
+
+MIT. See `LICENSE`.

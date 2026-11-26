@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>MacSongManager.Import</RootNamespace>
+    <Description>Boundary for a future audio-to-custom-song importer. v1 ships no charting implementation.</Description>
+  </PropertyGroup>
+</Project>
